@@ -163,3 +163,32 @@ def delete_candidate(
         raise
 
     return candidate
+
+
+def update_candidate_github_profile(
+    db,
+    user_id: int,
+    github_profile: dict
+):
+
+    candidate = get_candidate_by_user_id(
+        db=db,
+        user_id=user_id
+    )
+
+    if not candidate:
+        return None
+
+    candidate.github_profile_json = github_profile
+
+    try:
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        logger.exception("Database write failed while saving GitHub profile")
+        raise
+
+    db.refresh(candidate)
+
+    return candidate

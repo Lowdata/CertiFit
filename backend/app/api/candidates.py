@@ -17,13 +17,21 @@ from app.schemas.candidate import (
     CandidateProfileResponse,
     CandidateResponse,
     DeleteCandidateResponse,
+    GitHubProfileRequest,
+    GitHubProfileResponse,
 )
 from app.services.candidate_service import (
     create_candidate,
     get_candidate_by_id,
     get_candidate_by_user_id,
-    delete_candidate
+    delete_candidate,
+    update_candidate_github_profile
 
+)
+from app.services.github_service import (
+    GitHubClientError,
+    GitHubNotFoundError,
+    analyze_github_profile,
 )
 
 router = APIRouter()
@@ -159,8 +167,64 @@ def get_my_candidate_profile(
         "id": candidate.id,
         "resume_file_name": candidate.resume_file_name,
         "parsed_candidate": candidate.parsed_candidate_json,
+        "github_profile": candidate.github_profile_json,
         "created_at": candidate.created_at,
         "updated_at": candidate.updated_at
+    }
+
+
+@router.post("/github", response_model=GitHubProfileResponse)
+def upload_github_profile(
+    data: GitHubProfileRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_candidate
+    )
+):
+
+    candidate = get_candidate_by_user_id(
+        db=db,
+        user_id=current_user.id
+    )
+
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate profile not found"
+        )
+
+    try:
+        github_profile = analyze_github_profile(
+            data.identifier
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
+
+    except GitHubNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc)
+        ) from exc
+
+    except GitHubClientError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc)
+        ) from exc
+
+    candidate = update_candidate_github_profile(
+        db=db,
+        user_id=current_user.id,
+        github_profile=github_profile
+    )
+
+    return {
+        "id": candidate.id,
+        "github_profile": candidate.github_profile_json
     }
 
 @router.get("/", response_model=CandidateListResponse)
@@ -226,6 +290,7 @@ def get_candidate(
         "id": candidate.id,
         "resume_file_name": candidate.resume_file_name,
         "parsed_candidate": candidate.parsed_candidate_json,
+        "github_profile": candidate.github_profile_json,
         "created_at": candidate.created_at,
         "updated_at": candidate.updated_at
     }

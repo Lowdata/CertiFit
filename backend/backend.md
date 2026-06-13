@@ -49,14 +49,14 @@ Out of scope for current MVP unless explicitly requested:
 | Resume parsing | Implemented | PDF/DOCX text extraction plus Gemini normalization/fallback. |
 | JD parsing | Implemented | Gemini normalization/fallback. |
 | Ranking | Implemented | Deterministic weighted scoring; no vector DB. |
-| Migrations | Implemented | Alembic chain exists through applications. |
-| GitHub processing | Pending | No service, model, API, or tests currently exist. |
+| Migrations | Implemented | Alembic chain exists through GitHub profile storage. |
+| GitHub processing | Implemented | Candidate-only `POST /candidates/github` stores structured GitHub evidence in `candidates.github_profile_json`. Supports usernames, profile URLs, and repo URLs. |
 | LinkedIn PDF processing | Pending | No LinkedIn-specific parser, model, API, or tests currently exist. Reference file `testprofile.pdf` exists at backend root and extracts as a 4-page LinkedIn profile PDF. |
 | Normalized profile generation | Pending | Resume parser stores `parsed_candidate_json`, but there is no unified profile assembled from resume/LinkedIn/GitHub. |
 | Trust score | Pending | No trust scoring implementation found. |
 | Interview copilot | Pending | `app/api/interview.py` exists but is empty and not registered. |
 
-Backend completion estimate: 88% for the current resume/job/application MVP; lower if GitHub, LinkedIn, normalized profile, trust score, and interview copilot are required for MVP completion.
+Backend completion estimate: 90% for the current resume/job/application/GitHub MVP; lower if LinkedIn, normalized profile, trust score, and interview copilot are required for MVP completion.
 
 ## Repository Structure
 
@@ -70,6 +70,7 @@ backend/
       0001_baseline.py
       0002_add_job_and_candidate_ownership.py
       0003_create_applications.py
+      0004_add_candidate_github_profile.py
   app/
     main.py
     api/
@@ -105,11 +106,13 @@ backend/
       llm_candidate_analyzer.py
       llm_job_analyzer.py
       llm_validation.py
+      github_service.py
       resume_parser.py
   tests/
     conftest.py
     test_applications.py
     test_auth_privacy.py
+    test_github.py
     test_parser_and_ranking.py
     test_uploads.py
   create.py              # local helper only
@@ -176,6 +179,7 @@ erDiagram
         string resume_file_name
         text raw_resume_text
         json parsed_candidate_json
+        json github_profile_json
         datetime created_at
         datetime updated_at
     }
@@ -204,6 +208,7 @@ Current tables:
 - `candidates`
   - One candidate profile per user via unique `user_id`.
   - Stores resume-derived raw text and parsed JSON.
+  - Stores GitHub-derived structured evidence separately in `github_profile_json`.
 - `applications`
   - Links one candidate profile to one job.
   - Unique `(job_id, candidate_id)` blocks duplicate apply.
@@ -211,7 +216,6 @@ Current tables:
 
 Pending schema areas:
 
-- GitHub profile data storage.
 - LinkedIn profile data storage.
 - Normalized profile storage.
 - Trust score storage.
@@ -299,6 +303,7 @@ flowchart TD
 Current candidate endpoints:
 
 - `POST /candidates/upload`
+- `POST /candidates/github`
 - `GET /candidates/me`
 - `GET /candidates/`
 - `GET /candidates/{candidate_id}`
@@ -360,7 +365,7 @@ Current resume upload hardening:
 
 ## LinkedIn Processing Flow
 
-Status: pending.
+Status: implemented for candidate-owned profiles.
 
 MVP input format: PDF upload.
 
@@ -413,25 +418,37 @@ Use real GitHub APIs and real response shapes whenever possible:
 - `GET /repos/{owner}/{repo}/readme`
 - `GET /users/{username}/events/public`
 
-Expected future flow:
+Current flow:
 
 ```mermaid
 flowchart TD
-    A["Candidate submits GitHub username or URL"] --> B["Normalize input to username/repo"]
-    B --> C["Fetch GitHub profile"]
-    C --> D["Fetch repos"]
-    D --> E["Fetch selected repo languages/readmes"]
-    E --> F["Fetch public activity"]
-    F --> G["Compute GitHub evidence JSON"]
-    G --> H["Store separately from resume and LinkedIn"]
-    H --> I["Feed normalized profile and trust score"]
+    A["Candidate submits GitHub username or URL"] --> B["Require candidate profile"]
+    B --> C["Normalize input to username/repo"]
+    C --> D["Fetch GitHub profile"]
+    D --> E["Fetch repos"]
+    E --> F["Fetch repo languages"]
+    F --> G["Fetch public activity"]
+    G --> H["Compute GitHub evidence JSON"]
+    H --> I["Store in candidates.github_profile_json"]
+    I --> J["Future: feed normalized profile and trust score"]
 ```
 
 Implementation guardrails:
 
-- Do not invent API response fields.
+- Do not invent API response fields. The implementation maps real fields observed from `GET /users/Lowdata`, `GET /users/Lowdata/repos`, `GET /repos/{owner}/{repo}/languages`, and `GET /users/Lowdata/events/public`.
 - Handle rate limits and unavailable data gracefully.
 - Never require GitHub auth for public MVP analysis unless API limits demand it.
+
+Current endpoint:
+
+- `POST /candidates/github`
+  - Auth: candidate.
+  - Body examples:
+    - `{"identifier": "Lowdata"}`
+    - `{"identifier": "https://github.com/Lowdata"}`
+    - `{"identifier": "https://github.com/Lowdata/CertiFit"}`
+  - Requires an existing candidate profile.
+  - Stores structured output in `candidates.github_profile_json`.
 
 ## Normalized Profile Generation
 
@@ -446,7 +463,7 @@ Target MVP shape should merge evidence from:
 
 - Resume profile.
 - LinkedIn PDF profile.
-- GitHub evidence.
+- GitHub evidence from `candidates.github_profile_json`.
 
 Expected future flow:
 
@@ -563,6 +580,7 @@ Route inventory from current app:
 | POST | `/jobs/{job_id}/apply` | Candidate | Implemented |
 | GET | `/jobs/{job_id}/applications` | Recruiter owner | Implemented |
 | POST | `/candidates/upload` | Candidate | Implemented |
+| POST | `/candidates/github` | Candidate | Implemented |
 | GET | `/candidates/me` | Candidate | Implemented |
 | GET | `/candidates/` | Candidate | Implemented but odd; returns only own summary |
 | GET | `/candidates/{candidate_id}` | Candidate owner | Implemented |
@@ -571,7 +589,6 @@ Route inventory from current app:
 
 Pending API areas:
 
-- GitHub ingestion endpoint.
 - LinkedIn PDF ingestion endpoint.
 - Normalized profile endpoint.
 - Trust score endpoint or embedded profile field.
@@ -613,6 +630,7 @@ Current migration chain:
 - `0001_baseline`
 - `0002_add_ownership`
 - `0003_create_applications`
+- `0004_add_candidate_github`
 
 Operational notes:
 
@@ -639,6 +657,10 @@ Current test suite:
   - fallback candidate shape;
   - LLM shape normalization;
   - technology alias normalization.
+- GitHub:
+  - username/profile URL/repo URL parsing;
+  - candidate GitHub profile storage;
+  - candidate profile required before GitHub ingestion.
 
 Current verification commands:
 
@@ -658,7 +680,6 @@ Recommended next tests:
 - Recruiter cannot call candidate-only routes.
 - Upload rejects oversized file.
 - Upload rejects invalid PDF/DOCX magic bytes.
-- GitHub URL/username parsing tests.
 - GitHub API client tests using real response fixtures.
 - LinkedIn PDF parser tests using `testprofile.pdf` when present.
 - Normalized profile and trust score tests.
@@ -667,7 +688,7 @@ Recommended next tests:
 
 - `backend.md` was absent before this documentation pass; previous detailed audit existed as `docs/BACKEND_ARCHITECTURE.md`.
 - `testprofile.pdf` exists at backend root as untracked reference data and should be used for LinkedIn parser validation unless the team decides to track or relocate it.
-- GitHub test account `Lowdata` is known from project context but no GitHub analyzer exists yet.
+- GitHub ingestion exists, but it currently uses unauthenticated public API calls and does not persist raw API responses.
 - Trust scoring is pending.
 - LinkedIn ingestion is pending.
 - Normalized profile generation is pending.
@@ -681,16 +702,18 @@ Recommended next tests:
 
 Recommended implementation order:
 
-1. Establish `backend.md` as committed source of truth.
-2. Add GitHub input normalization and GitHub API client.
-3. Add GitHub analyzer endpoint and tests against real/fixture response shapes.
-4. Add LinkedIn PDF ingestion using `testprofile.pdf` as the reference parser fixture/source.
-5. Add normalized profile storage and generation.
-6. Add deterministic trust score engine.
-7. Update ranking to read normalized profile while preserving deterministic MVP behavior.
-8. Add recruiter-scoped candidate detail endpoint if product requires it.
-9. Add stateless interview copilot endpoint.
-10. Harden production config, CORS, token/session policy, upload scanning, and CI.
+1. Add LinkedIn PDF ingestion using `testprofile.pdf` as the reference parser fixture/source.
+2. Add normalized profile storage and generation.
+3. Add deterministic trust score engine.
+4. Update ranking to read normalized profile while preserving deterministic MVP behavior.
+5. Add recruiter-scoped candidate detail endpoint if product requires it.
+6. Add stateless interview copilot endpoint.
+7. Harden production config, CORS, token/session policy, upload scanning, and CI.
+
+Completed roadmap items:
+
+- `backend.md` established as source of truth.
+- GitHub input normalization, API client, candidate endpoint, storage, migration, and tests added.
 
 ## Current Audit Notes
 

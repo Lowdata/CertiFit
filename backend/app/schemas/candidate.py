@@ -11,6 +11,7 @@ class CandidateResponse(BaseModel):
 
 class CandidateProfileResponse(CandidateResponse):
     parsed_candidate: dict[str, Any]
+    github_profile: dict[str, Any] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -29,3 +30,12 @@ class CandidateListResponse(BaseModel):
 class DeleteCandidateResponse(BaseModel):
     message: str
     id: int
+
+
+class GitHubProfileRequest(BaseModel):
+    identifier: str
+
+
+class GitHubProfileResponse(BaseModel):
+    id: int
+    github_profile: dict[str, Any]
