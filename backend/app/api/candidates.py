@@ -11,7 +11,9 @@ from app.db.database import get_db
 from app.services.candidate_service import (
     create_candidate,
     get_candidates,
-    get_candidate_by_id
+    get_candidate_by_id,
+    delete_candidate
+
 )
 
 router = APIRouter()
@@ -103,4 +105,26 @@ def get_candidate(
         "parsed_candidate": candidate.parsed_candidate_json,
         "created_at": candidate.created_at,
         "updated_at": candidate.updated_at
+    }
+
+@router.delete("/{candidate_id}")
+def remove_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db)
+):
+
+    candidate = delete_candidate(
+        db=db,
+        candidate_id=candidate_id
+    )
+
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate not found"
+        )
+
+    return {
+        "message": "Candidate deleted",
+        "id": candidate_id
     }

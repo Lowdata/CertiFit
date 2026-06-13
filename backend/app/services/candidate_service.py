@@ -78,3 +78,25 @@ def get_candidate_by_id(
         )
         .first()
     )
+
+def delete_candidate(
+    db,
+    candidate_id: int
+):
+
+    candidate = (
+        db.query(Candidate)
+        .filter(
+            Candidate.id == candidate_id
+        )
+        .first()
+    )
+
+    if not candidate:
+        return None
+
+    db.delete(candidate)
+
+    db.commit()
+
+    return candidate
