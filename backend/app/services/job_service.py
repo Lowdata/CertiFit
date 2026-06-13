@@ -115,21 +115,6 @@ def get_job_by_id(
     )
 
 
-def get_owned_job_by_id(
-    db,
-    job_id: int,
-    recruiter_id: int
-):
-
-    return (
-        db.query(Job)
-        .filter(
-            Job.id == job_id,
-            Job.recruiter_id == recruiter_id
-        )
-        .first()
-    )
-
 def delete_job(
     db,
     job_id: int,

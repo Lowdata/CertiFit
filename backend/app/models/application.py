@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from sqlalchemy import CheckConstraint
 from sqlalchemy import DateTime
 from sqlalchemy import Float
 from sqlalchemy import ForeignKey
@@ -25,6 +26,11 @@ class Application(Base):
             "job_id",
             "candidate_id",
             name="uq_applications_job_candidate"
+        ),
+        CheckConstraint(
+            "status in ('applied', 'reviewed', 'shortlisted', "
+            "'interview', 'rejected', 'hired')",
+            name="ck_applications_status"
         ),
     )
 

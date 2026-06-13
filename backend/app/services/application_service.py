@@ -191,8 +191,9 @@ def get_applications_for_owned_job(
 ):
 
     return (
-        db.query(Application)
+        db.query(Application, Candidate)
         .join(Job, Application.job_id == Job.id)
+        .join(Candidate, Application.candidate_id == Candidate.id)
         .filter(
             Application.job_id == job_id,
             Job.recruiter_id == recruiter_id

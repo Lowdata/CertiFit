@@ -297,7 +297,7 @@ def list_job_applications(
     )
 ):
 
-    applications = get_applications_for_owned_job(
+    application_rows = get_applications_for_owned_job(
         db=db,
         job_id=job_id,
         recruiter_id=current_user.id
@@ -320,6 +320,11 @@ def list_job_applications(
             {
                 "id": application.id,
                 "candidate_id": application.candidate_id,
+                "candidate": {
+                    "id": candidate.id,
+                    "resume_file_name": candidate.resume_file_name,
+                    "parsed_candidate": candidate.parsed_candidate_json
+                },
                 "status": application.status,
                 "match_score": application.match_score,
                 "match_summary": application.match_summary,
@@ -328,6 +333,6 @@ def list_job_applications(
                 "applied_at": application.applied_at,
                 "updated_at": application.updated_at
             }
-            for application in applications
+            for application, candidate in application_rows
         ]
     }
