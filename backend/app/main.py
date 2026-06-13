@@ -2,6 +2,9 @@
 from fastapi import FastAPI
 from app.api.jobs import router as jobs_router
 from app.api.app import router as health_router
+from app.api.candidates import (
+    router as candidates_router
+)
 
 app = FastAPI(title="CertiFit")
 
@@ -15,4 +18,10 @@ app.include_router(
     jobs_router,
     prefix="/jobs",
     tags=["Jobs"]
+)
+
+app.include_router(
+    candidates_router,
+    prefix="/candidates",
+    tags=["Candidates"]
 )

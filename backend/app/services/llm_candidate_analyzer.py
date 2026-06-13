@@ -15,12 +15,18 @@ You are an expert technical recruiter.
 
 Analyze a resume.
 
-Return ONLY JSON.
+Return ONLY valid JSON.
 
 {
   "name": "",
   "email": "",
   "phone": "",
+
+  "github_url": "",
+  "linkedin_url": "",
+
+  "portfolio_urls": [],
+  "project_urls": [],
 
   "current_role": "",
 
@@ -48,16 +54,35 @@ Return ONLY JSON.
 
   "impact_claims": []
 }
+
+Rules:
+
+1. Extract GitHub URL if present.
+2. Extract LinkedIn URL if present.
+3. Put personal/project websites into project_urls.
+4. Put portfolio websites into portfolio_urls.
+5. Return ONLY JSON.
 """
 
 
 def analyze_candidate_resume(
-    resume_text: str
+    resume_text: str,
+    links: list
 ):
+
+    prompt = f"""
+Resume Links:
+
+{chr(10).join(links)}
+
+Resume:
+
+{resume_text}
+"""
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=f"{SYSTEM_PROMPT}\n\n{resume_text}",
+        contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
         config={
             "temperature": 0.1,
             "response_mime_type": "application/json"

@@ -1,9 +1,9 @@
-import os
+# app/services/candidate_service.py
 
 from app.models.candidate import Candidate
 
 from app.services.resume_parser import (
-    extract_resume_text
+    extract_resume_data
 )
 
 from app.services.llm_candidate_analyzer import (
@@ -17,12 +17,17 @@ def create_candidate(
     file_name: str
 ):
 
-    resume_text = extract_resume_text(
+    resume_data = extract_resume_data(
         file_path
     )
 
+    resume_text = resume_data["text"]
+
+    resume_links = resume_data["links"]
+
     parsed_resume = analyze_candidate_resume(
-        resume_text
+        resume_text,
+        resume_links
     )
 
     candidate = Candidate(
@@ -38,3 +43,36 @@ def create_candidate(
     db.refresh(candidate)
 
     return candidate
+
+def get_candidates(
+    db,
+    page: int,
+    page_size: int
+):
+
+    query = db.query(Candidate)
+
+    total = query.count()
+
+    candidates = (
+        query
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    return candidates, total
+
+
+def get_candidate_by_id(
+    db,
+    candidate_id: int
+):
+
+    return (
+        db.query(Candidate)
+        .filter(
+            Candidate.id == candidate_id
+        )
+        .first()
+    )
