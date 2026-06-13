@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_candidate
 from app.db.database import get_db
 from app.models.user import User
+from app.schemas.application import ApplicationListResponse
 from app.services.application_service import (
     get_applications_for_candidate
 )
@@ -18,7 +19,7 @@ from app.services.candidate_service import (
 router = APIRouter()
 
 
-@router.get("/me")
+@router.get("/me", response_model=ApplicationListResponse)
 def list_my_applications(
     db: Session = Depends(get_db),
     current_user: User = Depends(

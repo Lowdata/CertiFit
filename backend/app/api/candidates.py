@@ -1,22 +1,25 @@
 from pathlib import Path
+from uuid import uuid4
 import logging
 
 from fastapi import APIRouter
 from fastapi import UploadFile
-from fastapi import File,Query
+from fastapi import File, Query
 from fastapi import Depends, HTTPException
 
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.user import User
-from app.core.dependencies import (
-    get_current_candidate,
-    get_current_recruiter
+from app.core.dependencies import get_current_candidate
+from app.schemas.candidate import (
+    CandidateListResponse,
+    CandidateProfileResponse,
+    CandidateResponse,
+    DeleteCandidateResponse,
 )
 from app.services.candidate_service import (
     create_candidate,
-    get_candidates,
     get_candidate_by_id,
     get_candidate_by_user_id,
     delete_candidate
@@ -26,10 +29,51 @@ from app.services.candidate_service import (
 router = APIRouter()
 
 UPLOAD_DIR = "uploads"
+MAX_RESUME_SIZE_BYTES = 5 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+PDF_SIGNATURE = b"%PDF"
+DOCX_SIGNATURE = b"PK"
 logger = logging.getLogger(__name__)
 
 
-@router.post("/upload")
+def _safe_resume_extension(filename: str | None) -> str:
+    suffix = Path(filename or "").name.lower()
+    extension = Path(suffix).suffix
+    if extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Resume must be a PDF or DOCX file",
+        )
+    return extension
+
+
+def _validate_resume_content(content: bytes, extension: str):
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="Resume file is empty",
+        )
+
+    if len(content) > MAX_RESUME_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Resume file exceeds 5 MB limit",
+        )
+
+    if extension == ".pdf" and not content.startswith(PDF_SIGNATURE):
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file is not a valid PDF",
+        )
+
+    if extension == ".docx" and not content.startswith(DOCX_SIGNATURE):
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file is not a valid DOCX",
+        )
+
+
+@router.post("/upload", response_model=CandidateResponse)
 async def upload_candidate(
     resume: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -42,39 +86,57 @@ async def upload_candidate(
         exist_ok=True
     )
 
-    file_path = (
-        f"{UPLOAD_DIR}/{resume.filename}"
-    )
+    extension = _safe_resume_extension(resume.filename)
+    stored_file_name = f"{uuid4().hex}{extension}"
+    file_path = str(Path(UPLOAD_DIR) / stored_file_name)
 
     try:
+        content = await resume.read()
+        _validate_resume_content(content, extension)
+
         with open(
             file_path,
             "wb"
         ) as buffer:
 
-            content = await resume.read()
-
             buffer.write(content)
 
-    except Exception:
-        logger.exception("Resume upload failed")
+        candidate = create_candidate(
+            db=db,
+            user_id=current_user.id,
+            file_path=file_path,
+            file_name=stored_file_name
+        )
+
+    except HTTPException:
         if Path(file_path).exists():
             Path(file_path).unlink()
         raise
 
-    candidate = create_candidate(
-        db=db,
-        user_id=current_user.id,
-        file_path=file_path,
-        file_name=resume.filename
-    )
+    except ValueError as exc:
+        if Path(file_path).exists():
+            Path(file_path).unlink()
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except Exception:
+        if Path(file_path).exists():
+            Path(file_path).unlink()
+        logger.exception("Critical resume upload failure")
+        raise HTTPException(
+            status_code=500,
+            detail="Resume upload failed",
+        )
 
     return {
         "id": candidate.id,
-        "file_name": candidate.resume_file_name
+        "resume_file_name": candidate.resume_file_name
     }
 
-@router.get("/me")
+
+@router.get("/me", response_model=CandidateProfileResponse)
 def get_my_candidate_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(
@@ -101,37 +163,40 @@ def get_my_candidate_profile(
         "updated_at": candidate.updated_at
     }
 
-@router.get("/")
+@router.get("/", response_model=CandidateListResponse)
 def list_candidates(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_recruiter
+        get_current_candidate
     )
 ):
 
-    candidates, total = get_candidates(
+    candidate = get_candidate_by_user_id(
         db=db,
-        page=page,
-        page_size=page_size
+        user_id=current_user.id
     )
 
-    return {
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "data": [
+    data = []
+    if candidate:
+        data.append(
             {
                 "id": candidate.id,
                 "resume_file_name": candidate.resume_file_name,
-                "created_at": candidate.created_at
+                "created_at": candidate.created_at,
             }
-            for candidate in candidates
-        ]
+        )
+
+    return {
+        "total": len(data),
+        "page": page,
+        "page_size": page_size,
+        "data": data,
     }
 
-@router.get("/{candidate_id}")
+
+@router.get("/{candidate_id}", response_model=CandidateProfileResponse)
 def get_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),
@@ -165,7 +230,8 @@ def get_candidate(
         "updated_at": candidate.updated_at
     }
 
-@router.delete("/{candidate_id}")
+
+@router.delete("/{candidate_id}", response_model=DeleteCandidateResponse)
 def remove_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),

@@ -37,11 +37,16 @@ def create_candidate(
             resume_links
         )
 
-    except Exception:
-        logger.exception("Parser failed while processing resume")
+    except ValueError:
         if os.path.exists(file_path):
             os.remove(file_path)
         raise
+
+    except Exception as exc:
+        logger.exception("Critical parser failure while processing resume")
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise ValueError("Resume could not be processed") from exc
 
     candidate = get_candidate_by_user_id(
         db=db,

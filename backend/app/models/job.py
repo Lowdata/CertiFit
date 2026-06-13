@@ -24,7 +24,7 @@ class Job(Base):
     )
 
     recruiter_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
         index=True
     )

@@ -20,7 +20,17 @@ from app.core.dependencies import (
 
 from app.schemas.job import (
     JobInput,
-    CreateJobRequest
+    CreateJobRequest,
+    DeleteJobResponse,
+    JobCreateResponse,
+    JobDetailResponse,
+    JobListResponse,
+    JobParseResponse,
+    JobReparseResponse,
+)
+from app.schemas.application import (
+    ApplicationResponse,
+    JobApplicationListResponse,
 )
 
 from app.services.jd_parser import (
@@ -46,7 +56,7 @@ from app.services.application_service import (
 router = APIRouter()
 
 
-@router.post("/parse")
+@router.post("/parse", response_model=JobParseResponse)
 def parse_job(
     data: JobInput,
     current_user: User = Depends(
@@ -54,12 +64,14 @@ def parse_job(
     )
 ):
 
-    return parse_job_description(
-        data.jd
-    )
+    return {
+        "parsed_jd": parse_job_description(
+            data.jd
+        )
+    }
 
 
-@router.post("/")
+@router.post("/", response_model=JobCreateResponse)
 def create_new_job(
     data: CreateJobRequest,
     db: Session = Depends(get_db),
@@ -83,7 +95,7 @@ def create_new_job(
     }
 
 
-@router.get("/my-jobs")
+@router.get("/my-jobs", response_model=JobListResponse)
 def list_my_jobs(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
@@ -116,7 +128,7 @@ def list_my_jobs(
     }
 
 
-@router.get("/")
+@router.get("/", response_model=JobListResponse)
 def list_jobs(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
@@ -149,7 +161,7 @@ def list_jobs(
     }
 
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", response_model=JobDetailResponse)
 def get_job(
     job_id: int,
     db: Session = Depends(get_db)
@@ -178,7 +190,7 @@ def get_job(
     }
 
 
-@router.delete("/{job_id}")
+@router.delete("/{job_id}", response_model=DeleteJobResponse)
 def remove_job(
     job_id: int,
     db: Session = Depends(get_db),
@@ -206,7 +218,7 @@ def remove_job(
     }
 
 
-@router.post("/{job_id}/reparse")
+@router.post("/{job_id}/reparse", response_model=JobReparseResponse)
 def reparse_existing_job(
     job_id: int,
     db: Session = Depends(get_db),
@@ -236,7 +248,7 @@ def reparse_existing_job(
     }
 
 
-@router.post("/{job_id}/apply")
+@router.post("/{job_id}/apply", response_model=ApplicationResponse)
 def apply_to_job(
     job_id: int,
     db: Session = Depends(get_db),
@@ -288,7 +300,7 @@ def apply_to_job(
     }
 
 
-@router.get("/{job_id}/applications")
+@router.get("/{job_id}/applications", response_model=JobApplicationListResponse)
 def list_job_applications(
     job_id: int,
     db: Session = Depends(get_db),

@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -9,3 +12,42 @@ class CreateJobRequest(BaseModel):
     title: str
     company: str
     jd: str
+
+
+class JobSummaryResponse(BaseModel):
+    id: int
+    title: str
+    company: str
+    created_at: datetime | None = None
+
+
+class JobCreateResponse(BaseModel):
+    id: int
+    title: str
+    company: str
+
+
+class JobDetailResponse(JobSummaryResponse):
+    raw_jd: str
+    parsed_jd: dict[str, Any]
+    updated_at: datetime | None = None
+
+
+class JobParseResponse(BaseModel):
+    parsed_jd: dict[str, Any]
+
+
+class JobReparseResponse(JobCreateResponse):
+    parsed_jd: dict[str, Any]
+
+
+class JobListResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    data: list[JobSummaryResponse]
+
+
+class DeleteJobResponse(BaseModel):
+    message: str
+    job_id: int
