@@ -1,5 +1,5 @@
 # app/services/candidate_service.py
-
+import os
 from app.models.candidate import Candidate
 
 from app.services.resume_parser import (
@@ -41,6 +41,8 @@ def create_candidate(
     db.commit()
 
     db.refresh(candidate)
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
     return candidate
 
