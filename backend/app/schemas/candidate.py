@@ -12,6 +12,7 @@ class CandidateResponse(BaseModel):
 class CandidateProfileResponse(CandidateResponse):
     parsed_candidate: dict[str, Any]
     github_profile: dict[str, Any] | None = None
+    linkedin_profile: dict[str, Any] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -39,3 +40,8 @@ class GitHubProfileRequest(BaseModel):
 class GitHubProfileResponse(BaseModel):
     id: int
     github_profile: dict[str, Any]
+
+
+class LinkedInProfileResponse(BaseModel):
+    id: int
+    linkedin_profile: dict[str, Any]

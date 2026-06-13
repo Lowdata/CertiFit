@@ -19,13 +19,15 @@ from app.schemas.candidate import (
     DeleteCandidateResponse,
     GitHubProfileRequest,
     GitHubProfileResponse,
+    LinkedInProfileResponse,
 )
 from app.services.candidate_service import (
     create_candidate,
     get_candidate_by_id,
     get_candidate_by_user_id,
     delete_candidate,
-    update_candidate_github_profile
+    update_candidate_github_profile,
+    update_candidate_linkedin_profile
 
 )
 from app.services.github_service import (
@@ -33,6 +35,7 @@ from app.services.github_service import (
     GitHubNotFoundError,
     analyze_github_profile,
 )
+from app.services.linkedin_service import parse_linkedin_pdf
 
 router = APIRouter()
 
@@ -168,6 +171,7 @@ def get_my_candidate_profile(
         "resume_file_name": candidate.resume_file_name,
         "parsed_candidate": candidate.parsed_candidate_json,
         "github_profile": candidate.github_profile_json,
+        "linkedin_profile": candidate.linkedin_profile_json,
         "created_at": candidate.created_at,
         "updated_at": candidate.updated_at
     }
@@ -225,6 +229,49 @@ def upload_github_profile(
     return {
         "id": candidate.id,
         "github_profile": candidate.github_profile_json
+    }
+
+
+@router.post("/linkedin", response_model=LinkedInProfileResponse)
+async def upload_linkedin_profile(
+    profile: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_candidate
+    )
+):
+
+    candidate = get_candidate_by_user_id(
+        db=db,
+        user_id=current_user.id
+    )
+
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate profile not found"
+        )
+
+    try:
+        linkedin_profile = parse_linkedin_pdf(
+            await profile.read()
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
+
+    candidate = update_candidate_linkedin_profile(
+        db=db,
+        user_id=current_user.id,
+        linkedin_profile=linkedin_profile
+    )
+
+    return {
+        "id": candidate.id,
+        "linkedin_profile": candidate.linkedin_profile_json
     }
 
 @router.get("/", response_model=CandidateListResponse)
@@ -291,6 +338,7 @@ def get_candidate(
         "resume_file_name": candidate.resume_file_name,
         "parsed_candidate": candidate.parsed_candidate_json,
         "github_profile": candidate.github_profile_json,
+        "linkedin_profile": candidate.linkedin_profile_json,
         "created_at": candidate.created_at,
         "updated_at": candidate.updated_at
     }
