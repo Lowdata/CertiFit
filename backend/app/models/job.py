@@ -4,6 +4,7 @@ from sqlalchemy import String
 from sqlalchemy import Text
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
+from sqlalchemy import JSON
 from sqlalchemy import func
 
 from sqlalchemy.orm import Mapped
@@ -45,7 +46,7 @@ class Job(Base):
     )
 
     parsed_jd_json: Mapped[dict] = mapped_column(
-        JSONB,
+        JSON().with_variant(JSONB, "postgresql"),
         nullable=False,
         default=dict
     )

@@ -4,6 +4,7 @@ from sqlalchemy import CheckConstraint
 from sqlalchemy import DateTime
 from sqlalchemy import Float
 from sqlalchemy import ForeignKey
+from sqlalchemy import JSON
 from sqlalchemy import String
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
@@ -71,13 +72,13 @@ class Application(Base):
     )
 
     strengths_json: Mapped[list] = mapped_column(
-        JSONB,
+        JSON().with_variant(JSONB, "postgresql"),
         nullable=False,
         default=list
     )
 
     gaps_json: Mapped[list] = mapped_column(
-        JSONB,
+        JSON().with_variant(JSONB, "postgresql"),
         nullable=False,
         default=list
     )

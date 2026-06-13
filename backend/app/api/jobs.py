@@ -331,6 +331,7 @@ def list_job_applications(
         "data": [
             {
                 "id": application.id,
+                "job_id": application.job_id,
                 "candidate_id": application.candidate_id,
                 "candidate": {
                     "id": candidate.id,
