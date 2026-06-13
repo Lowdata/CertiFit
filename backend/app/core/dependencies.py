@@ -72,37 +72,6 @@ def get_current_user(
 
 
 def get_current_recruiter(
-    current_user=Depends(
-        get_current_user
-    )
-):
-
-    if current_user.user_type != 1:
-
-        raise HTTPException(
-            status_code=403,
-            detail="Recruiter only"
-        )
-
-    return current_user
-
-
-def get_current_candidate(
-    current_user=Depends(
-        get_current_user
-    )
-):
-
-    if current_user.user_type != 2:
-
-        raise HTTPException(
-            status_code=403,
-            detail="Candidate only"
-        )
-
-    return current_user
-
-def get_current_recruiter(
     current_user: User = Depends(
         get_current_user
     )
@@ -113,6 +82,22 @@ def get_current_recruiter(
         raise HTTPException(
             status_code=403,
             detail="Recruiter access required"
+        )
+
+    return current_user
+
+
+def get_current_candidate(
+    current_user: User = Depends(
+        get_current_user
+    )
+):
+
+    if current_user.user_type != 2:
+
+        raise HTTPException(
+            status_code=403,
+            detail="Candidate only"
         )
 
     return current_user

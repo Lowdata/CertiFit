@@ -17,6 +17,11 @@ def register_user(
     user_type: int
 ):
 
+    if user_type not in (1, 2):
+        raise ValueError(
+            "Invalid user type"
+        )
+
     existing = (
         db.query(User)
         .filter(User.email == email)

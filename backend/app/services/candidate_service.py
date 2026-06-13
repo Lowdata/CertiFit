@@ -1,5 +1,7 @@
 # app/services/candidate_service.py
+import logging
 import os
+
 from app.models.candidate import Candidate
 
 from app.services.resume_parser import (
@@ -11,38 +13,69 @@ from app.services.llm_candidate_analyzer import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def create_candidate(
     db,
+    user_id: int,
     file_path: str,
     file_name: str
 ):
 
-    resume_data = extract_resume_data(
-        file_path
+    try:
+        resume_data = extract_resume_data(
+            file_path
+        )
+
+        resume_text = resume_data["text"]
+
+        resume_links = resume_data["links"]
+
+        parsed_resume = analyze_candidate_resume(
+            resume_text,
+            resume_links
+        )
+
+    except Exception:
+        logger.exception("Parser failed while processing resume")
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
+
+    candidate = get_candidate_by_user_id(
+        db=db,
+        user_id=user_id
     )
 
-    resume_text = resume_data["text"]
+    if candidate:
+        candidate.resume_file_name = file_name
+        candidate.raw_resume_text = resume_text
+        candidate.parsed_candidate_json = parsed_resume
 
-    resume_links = resume_data["links"]
+    else:
+        candidate = Candidate(
+            user_id=user_id,
+            resume_file_name=file_name,
+            raw_resume_text=resume_text,
+            parsed_candidate_json=parsed_resume
+        )
 
-    parsed_resume = analyze_candidate_resume(
-        resume_text,
-        resume_links
-    )
+        db.add(candidate)
 
-    candidate = Candidate(
-        resume_file_name=file_name,
-        raw_resume_text=resume_text,
-        parsed_candidate_json=parsed_resume
-    )
+    try:
+        db.commit()
 
-    db.add(candidate)
+    except Exception:
+        db.rollback()
+        logger.exception("Database write failed while saving candidate")
+        raise
 
-    db.commit()
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
     db.refresh(candidate)
-    if os.path.exists(file_path):
-        os.remove(file_path)
 
     return candidate
 
@@ -79,24 +112,49 @@ def get_candidate_by_id(
         .first()
     )
 
-def delete_candidate(
+
+def get_candidate_by_user_id(
     db,
-    candidate_id: int
+    user_id: int
 ):
 
-    candidate = (
+    return (
         db.query(Candidate)
         .filter(
-            Candidate.id == candidate_id
+            Candidate.user_id == user_id
         )
         .first()
     )
 
+
+def delete_candidate(
+    db,
+    candidate_id: int,
+    user_id: int | None = None
+):
+
+    query = db.query(Candidate).filter(
+        Candidate.id == candidate_id
+    )
+
+    if user_id is not None:
+        query = query.filter(
+            Candidate.user_id == user_id
+        )
+
+    candidate = query.first()
+
     if not candidate:
         return None
 
-    db.delete(candidate)
+    try:
+        db.delete(candidate)
 
-    db.commit()
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        logger.exception("Database write failed while deleting candidate")
+        raise
 
     return candidate

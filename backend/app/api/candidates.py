@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 from fastapi import APIRouter
 from fastapi import UploadFile
@@ -8,10 +9,16 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.models.user import User
+from app.core.dependencies import (
+    get_current_candidate,
+    get_current_recruiter
+)
 from app.services.candidate_service import (
     create_candidate,
     get_candidates,
     get_candidate_by_id,
+    get_candidate_by_user_id,
     delete_candidate
 
 )
@@ -19,12 +26,16 @@ from app.services.candidate_service import (
 router = APIRouter()
 
 UPLOAD_DIR = "uploads"
+logger = logging.getLogger(__name__)
 
 
 @router.post("/upload")
 async def upload_candidate(
     resume: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_candidate
+    )
 ):
 
     Path(UPLOAD_DIR).mkdir(
@@ -35,17 +46,25 @@ async def upload_candidate(
         f"{UPLOAD_DIR}/{resume.filename}"
     )
 
-    with open(
-        file_path,
-        "wb"
-    ) as buffer:
+    try:
+        with open(
+            file_path,
+            "wb"
+        ) as buffer:
 
-        content = await resume.read()
+            content = await resume.read()
 
-        buffer.write(content)
+            buffer.write(content)
+
+    except Exception:
+        logger.exception("Resume upload failed")
+        if Path(file_path).exists():
+            Path(file_path).unlink()
+        raise
 
     candidate = create_candidate(
         db=db,
+        user_id=current_user.id,
         file_path=file_path,
         file_name=resume.filename
     )
@@ -55,11 +74,41 @@ async def upload_candidate(
         "file_name": candidate.resume_file_name
     }
 
+@router.get("/me")
+def get_my_candidate_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_candidate
+    )
+):
+
+    candidate = get_candidate_by_user_id(
+        db=db,
+        user_id=current_user.id
+    )
+
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate profile not found"
+        )
+
+    return {
+        "id": candidate.id,
+        "resume_file_name": candidate.resume_file_name,
+        "parsed_candidate": candidate.parsed_candidate_json,
+        "created_at": candidate.created_at,
+        "updated_at": candidate.updated_at
+    }
+
 @router.get("/")
 def list_candidates(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_recruiter
+    )
 ):
 
     candidates, total = get_candidates(
@@ -85,7 +134,10 @@ def list_candidates(
 @router.get("/{candidate_id}")
 def get_candidate(
     candidate_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_candidate
+    )
 ):
 
     candidate = get_candidate_by_id(
@@ -99,6 +151,12 @@ def get_candidate(
             detail="Candidate not found"
         )
 
+    if candidate.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Candidate access required"
+        )
+
     return {
         "id": candidate.id,
         "resume_file_name": candidate.resume_file_name,
@@ -110,12 +168,16 @@ def get_candidate(
 @router.delete("/{candidate_id}")
 def remove_candidate(
     candidate_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_candidate
+    )
 ):
 
     candidate = delete_candidate(
         db=db,
-        candidate_id=candidate_id
+        candidate_id=candidate_id,
+        user_id=current_user.id
     )
 
     if not candidate:

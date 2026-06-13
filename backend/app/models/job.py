@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy import Text
 from sqlalchemy import DateTime
+from sqlalchemy import ForeignKey
 from sqlalchemy import func
 
 from sqlalchemy.orm import Mapped
@@ -19,6 +20,12 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
+        index=True
+    )
+
+    recruiter_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False,
         index=True
     )
 

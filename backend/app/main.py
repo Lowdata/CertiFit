@@ -8,6 +8,9 @@ from app.api.candidates import (
 from app.api.auth import (
     router as auth_router
 )
+from app.api.applications import (
+    router as applications_router
+)
 
 app = FastAPI(title="CertiFit")
 
@@ -33,4 +36,10 @@ app.include_router(
     auth_router,
     prefix="/auth",
     tags=["Auth"]
+)
+
+app.include_router(
+    applications_router,
+    prefix="/applications",
+    tags=["Applications"]
 )
