@@ -1,13 +1,21 @@
-import json
+import logging
 
 from google import genai
 
 from app.core.config import GEMINI_API_KEY
+from app.services.llm_validation import (
+    GEMINI_MODEL,
+    fallback_job_analysis,
+    gemini_json_config,
+    normalize_job_analysis,
+    parse_json_object,
+)
 
 
 client = genai.Client(
     api_key=GEMINI_API_KEY
 )
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """You are a senior technical recruiter and hiring manager with 10+ years of experience across software engineering, AI, data, DevOps, product, and startup hiring.
@@ -376,56 +384,18 @@ Job Description:
     try:
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=GEMINI_MODEL,
             contents=prompt,
-            config={
-                "temperature": 0.1,
-                "response_mime_type": "application/json"
-            }
+            config=gemini_json_config()
         )
 
-        text = response.text.strip()
+        return normalize_job_analysis(
+            parse_json_object(response.text)
+        )
 
-        return json.loads(text)
+    except Exception as exc:
 
-    except Exception as e:
-
-        return {
-            "role": "unknown",
-            "domain": "unknown",
-
-            "required_skills": [],
-            "inferred_skills": [],
-
-            "tech_stack": {
-                "languages": [],
-                "frameworks": [],
-                "databases": [],
-                "infrastructure": [],
-                "tools": []
-            },
-
-            "experience_years": 0,
-
-            "seniority": "unknown",
-
-            "leadership": False,
-
-            "ownership": "unknown",
-
-            "environment": "unknown",
-
-            "hiring_signals": {
-                "ownership": False,
-                "mentorship": False,
-                "stakeholder_management": False,
-                "startup_mindset": False,
-                "ai_tooling_expected": False
-            },
-
-            "red_flags": [
-                f"llm_parse_error: {str(e)}"
-            ],
-
-            "confidence": "low"
-        }
+        logger.exception("Critical job LLM parsing failure")
+        return fallback_job_analysis(
+            f"llm_parse_error: {str(exc)}"
+        )

@@ -1,4 +1,5 @@
 import logging
+import re
 
 from app.models.application import Application
 from app.models.candidate import Candidate
@@ -7,6 +8,33 @@ from app.models.job import Job
 
 logger = logging.getLogger(__name__)
 
+TERM_ALIASES = {
+    "js": "JavaScript",
+    "javascript": "JavaScript",
+    "node": "Node.js",
+    "nodejs": "Node.js",
+    "node.js": "Node.js",
+    "postgres": "PostgreSQL",
+    "postgresql": "PostgreSQL",
+    "reactjs": "React",
+    "react.js": "React",
+    "ts": "TypeScript",
+    "typescript": "TypeScript",
+}
+
+
+def _canonical_term(value) -> str:
+    cleaned = re.sub(
+        r"\s+",
+        " ",
+        str(value).strip(),
+    )
+    if not cleaned:
+        return ""
+
+    key = re.sub(r"[^a-z0-9+#.]", "", cleaned.lower())
+    return TERM_ALIASES.get(key, cleaned)
+
 
 def _as_set(values):
 
@@ -14,9 +42,9 @@ def _as_set(values):
         return set()
 
     return {
-        str(value).strip().lower()
+        _canonical_term(value)
         for value in values
-        if str(value).strip()
+        if _canonical_term(value)
     }
 
 
@@ -45,6 +73,9 @@ def calculate_match(
     required_skills = _as_set(
         job_data.get("required_skills", [])
     )
+    inferred_skills = _as_set(
+        job_data.get("inferred_skills", [])
+    )
     candidate_skills = _as_set(
         candidate_data.get("skills", [])
     )
@@ -56,24 +87,33 @@ def calculate_match(
         _tech_values(candidate_data.get("tech_stack", {}))
     )
 
-    required_matches = required_skills.intersection(
+    required_skill_matches = required_skills.intersection(
+        candidate_skills
+    )
+    inferred_skill_matches = inferred_skills.intersection(
         candidate_skills
     )
     tech_matches = job_tech.intersection(
         candidate_tech
     )
 
-    skill_score = 0
+    required_skill_score = 0
     if required_skills:
-        skill_score = (
-            len(required_matches) / len(required_skills)
-        ) * 60
+        required_skill_score = (
+            len(required_skill_matches) / len(required_skills)
+        ) * 50
+
+    inferred_skill_score = 0
+    if inferred_skills:
+        inferred_skill_score = (
+            len(inferred_skill_matches) / len(inferred_skills)
+        ) * 10
 
     tech_score = 0
     if job_tech:
         tech_score = (
             len(tech_matches) / len(job_tech)
-        ) * 30
+        ) * 25
 
     required_years = job_data.get(
         "experience_years",
@@ -84,28 +124,37 @@ def calculate_match(
         0
     ) or 0
 
-    experience_score = 10
+    experience_score = 15
     if required_years:
         experience_score = min(
             candidate_years / required_years,
             1
-        ) * 10
+        ) * 15
 
     score = round(
-        min(skill_score + tech_score + experience_score, 100),
+        min(
+            required_skill_score
+            + inferred_skill_score
+            + tech_score
+            + experience_score,
+            100
+        ),
         2
     )
 
     strengths = sorted(
-        required_matches.union(tech_matches)
+        required_skill_matches.union(inferred_skill_matches, tech_matches)
     )
     gaps = sorted(
         required_skills.difference(candidate_skills)
     )
 
     summary = (
-        f"Matched {len(required_matches)} of "
-        f"{len(required_skills)} required skills"
+        f"Score {score}: required skills "
+        f"{len(required_skill_matches)}/{len(required_skills)}, "
+        f"inferred skills {len(inferred_skill_matches)}/{len(inferred_skills)}, "
+        f"tech {len(tech_matches)}/{len(job_tech)}, "
+        f"experience {candidate_years}/{required_years or 0} years"
     )
 
     return {

@@ -1,13 +1,21 @@
-import json
+import logging
 
 from google import genai
 
 from app.core.config import GEMINI_API_KEY
+from app.services.llm_validation import (
+    GEMINI_MODEL,
+    fallback_candidate_analysis,
+    gemini_json_config,
+    normalize_candidate_analysis,
+    parse_json_object,
+)
 
 
 client = genai.Client(
     api_key=GEMINI_API_KEY
 )
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """
@@ -80,15 +88,19 @@ Resume:
 {resume_text}
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
-        config={
-            "temperature": 0.1,
-            "response_mime_type": "application/json"
-        }
-    )
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
+            config=gemini_json_config()
+        )
 
-    return json.loads(
-        response.text
-    )
+        return normalize_candidate_analysis(
+            parse_json_object(response.text)
+        )
+
+    except Exception as exc:
+        logger.exception("Critical candidate LLM parsing failure")
+        return fallback_candidate_analysis(
+            f"llm_parse_error: {str(exc)}"
+        )
