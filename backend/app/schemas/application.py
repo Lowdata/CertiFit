@@ -1,14 +1,29 @@
 from datetime import datetime
 from typing import Any
+from typing import Literal
 
 from pydantic import BaseModel
+
+
+ApplicationStatus = Literal[
+    "applied",
+    "reviewed",
+    "shortlisted",
+    "interview",
+    "rejected",
+    "hired",
+]
+
+
+class ApplicationStatusUpdateRequest(BaseModel):
+    status: ApplicationStatus
 
 
 class ApplicationResponse(BaseModel):
     id: int
     job_id: int
     candidate_id: int
-    status: str
+    status: ApplicationStatus
     match_score: float
     match_summary: str
     strengths: list[Any]

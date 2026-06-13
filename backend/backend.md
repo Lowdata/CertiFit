@@ -45,7 +45,7 @@ Out of scope for current MVP unless explicitly requested:
 | Auth | Implemented | JWT bearer auth with recruiter/candidate role dependencies. |
 | Job ownership | Implemented | Recruiter management routes filter by `jobs.recruiter_id`. |
 | Candidate ownership | Implemented | Candidate profile routes require candidate auth and owner match. |
-| Applications | Implemented | Candidate apply flow, duplicate protection, recruiter-owned application listing. |
+| Applications | Implemented | Candidate apply flow, duplicate protection, recruiter-owned application listing, and recruiter-owned status workflow. |
 | Resume parsing | Implemented | PDF/DOCX text extraction plus Gemini normalization/fallback. |
 | JD parsing | Implemented | Gemini normalization/fallback. |
 | Ranking | Implemented | Deterministic weighted scoring; no vector DB. |
@@ -257,6 +257,7 @@ Rules verified against current code:
 - Candidate profile access checks `candidate.user_id == current_user.id`.
 - Recruiter job management filters on `Job.recruiter_id == current_user.id`.
 - Recruiter application listing verifies the job belongs to the recruiter.
+- Recruiter application status updates verify the application belongs to a job owned by the recruiter.
 - Candidate application listing resolves the authenticated user's candidate profile first.
 
 Known authorization caveats:
@@ -273,6 +274,7 @@ flowchart TD
     R -- "Candidate" --> C["Owns profile via candidates.user_id"]
     J --> A["Can view applications for owned jobs"]
     A --> P["Can see candidate parsed profile embedded in those application rows"]
+    A --> S["Can update application status for owned jobs"]
     C --> CA["Can apply to jobs"]
     C --> MY["Can view own applications"]
 ```
@@ -327,6 +329,7 @@ flowchart TD
     D --> G["Delete own job"]
     D --> H["View owned job applications"]
     H --> I["Review candidate parsed profile data"]
+    I --> J["Move applications through validated status workflow"]
 ```
 
 Current recruiter endpoints:
@@ -337,6 +340,20 @@ Current recruiter endpoints:
 - `POST /jobs/{job_id}/reparse`
 - `DELETE /jobs/{job_id}`
 - `GET /jobs/{job_id}/applications`
+- `PATCH /applications/{application_id}/status`
+
+Application status workflow:
+
+- Allowed statuses: `applied`, `reviewed`, `shortlisted`, `interview`, `rejected`, `hired`.
+- Recruiter-only route: `PATCH /applications/{application_id}/status`.
+- Request body: `{"status": "<allowed-status>"}`.
+- Ownership: the authenticated recruiter must own the job linked to the application.
+- Candidates cannot update status.
+- Valid transitions are forward-only: `applied -> reviewed -> shortlisted -> interview -> hired`.
+- `rejected` is allowed from any non-terminal status.
+- `hired` and `rejected` are terminal statuses.
+- Re-submitting the current status is idempotent and returns the unchanged application summary.
+- Successful status changes update `applications.updated_at` and return the application summary.
 
 ## Resume Processing Flow
 
@@ -411,7 +428,7 @@ Current endpoint:
 
 ## GitHub Processing Flow
 
-Status: pending.
+Status: implemented.
 
 Required input support:
 

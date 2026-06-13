@@ -1,5 +1,7 @@
 import logging
 import re
+from datetime import UTC
+from datetime import datetime
 
 from app.models.application import Application
 from app.models.candidate import Candidate
@@ -7,6 +9,24 @@ from app.models.job import Job
 
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_APPLICATION_STATUSES = {
+    "applied",
+    "reviewed",
+    "shortlisted",
+    "interview",
+    "rejected",
+    "hired",
+}
+
+APPLICATION_STATUS_TRANSITIONS = {
+    "applied": {"reviewed", "rejected"},
+    "reviewed": {"shortlisted", "rejected"},
+    "shortlisted": {"interview", "rejected"},
+    "interview": {"hired", "rejected"},
+    "rejected": set(),
+    "hired": set(),
+}
 
 TERM_ALIASES = {
     "js": "JavaScript",
@@ -21,6 +41,18 @@ TERM_ALIASES = {
     "ts": "TypeScript",
     "typescript": "TypeScript",
 }
+
+
+class ApplicationNotFoundError(ValueError):
+    pass
+
+
+class InvalidApplicationStatusError(ValueError):
+    pass
+
+
+class InvalidApplicationStatusTransitionError(ValueError):
+    pass
 
 
 def _canonical_term(value) -> str:
@@ -250,3 +282,55 @@ def get_applications_for_owned_job(
         .order_by(Application.match_score.desc())
         .all()
     )
+
+
+def update_application_status(
+    db,
+    application_id: int,
+    recruiter_id: int,
+    status: str
+):
+
+    if status not in ALLOWED_APPLICATION_STATUSES:
+        raise InvalidApplicationStatusError("Invalid application status")
+
+    application = (
+        db.query(Application)
+        .join(Job, Application.job_id == Job.id)
+        .filter(
+            Application.id == application_id,
+            Job.recruiter_id == recruiter_id
+        )
+        .first()
+    )
+
+    if not application:
+        raise ApplicationNotFoundError("Application not found")
+
+    if status == application.status:
+        return application
+
+    allowed_next_statuses = APPLICATION_STATUS_TRANSITIONS.get(
+        application.status,
+        set()
+    )
+
+    if status not in allowed_next_statuses:
+        raise InvalidApplicationStatusTransitionError(
+            f"Cannot move application from {application.status} to {status}"
+        )
+
+    application.status = status
+    application.updated_at = datetime.now(UTC)
+
+    try:
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        logger.exception("Application status update failed")
+        raise
+
+    db.refresh(application)
+
+    return application
