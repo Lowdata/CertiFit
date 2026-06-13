@@ -1,6 +1,7 @@
 # app/schemas/auth.py
 from pydantic import BaseModel
 from pydantic import EmailStr
+from pydantic import Field
 
 
 class RegisterRequest(
@@ -20,9 +21,9 @@ class LoginRequest(
     BaseModel
 ):
 
-    email: EmailStr
+    email: EmailStr = Field(example="ayush@gmail.com")
 
-    password: str
+    password: str = Field(example="ayush123")
 
 
 class TokenResponse(

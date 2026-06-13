@@ -1,16 +1,29 @@
-from fastapi import APIRouter , Depends, Query
 from typing import Optional
-from app.schemas.job import JobInput
-from app.services.jd_parser import (
-    parse_job_description
-)
-from sqlalchemy.orm import Session
 
+from fastapi import (
+    APIRouter,
+    Depends,
+    Query,
+    HTTPException
+)
+
+from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 
+from app.models.user import User
+
+from app.core.dependencies import (
+    get_current_recruiter
+)
+
 from app.schemas.job import (
+    JobInput,
     CreateJobRequest
+)
+
+from app.services.jd_parser import (
+    parse_job_description
 )
 
 from app.services.job_service import (
@@ -21,21 +34,29 @@ from app.services.job_service import (
     reparse_job
 )
 
-
 router = APIRouter()
 
 
 @router.post("/parse")
-def parse_job(data: JobInput):
+def parse_job(
+    data: JobInput,
+    current_user: User = Depends(
+        get_current_recruiter
+    )
+):
 
     return parse_job_description(
         data.jd
     )
 
+
 @router.post("/")
 def create_new_job(
     data: CreateJobRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_recruiter
+    )
 ):
 
     job = create_job(
@@ -50,6 +71,7 @@ def create_new_job(
         "title": job.title,
         "company": job.company
     }
+
 
 @router.get("/")
 def list_jobs(
@@ -83,6 +105,7 @@ def list_jobs(
         ]
     }
 
+
 @router.get("/{job_id}")
 def get_job(
     job_id: int,
@@ -95,9 +118,11 @@ def get_job(
     )
 
     if not job:
-        return {
-            "message": "Job not found"
-        }
+
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found"
+        )
 
     return {
         "id": job.id,
@@ -109,10 +134,14 @@ def get_job(
         "updated_at": job.updated_at
     }
 
+
 @router.delete("/{job_id}")
 def remove_job(
     job_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_recruiter
+    )
 ):
 
     job = delete_job(
@@ -121,6 +150,7 @@ def remove_job(
     )
 
     if not job:
+
         raise HTTPException(
             status_code=404,
             detail="Job not found"
@@ -131,10 +161,14 @@ def remove_job(
         "job_id": job_id
     }
 
+
 @router.post("/{job_id}/reparse")
 def reparse_existing_job(
     job_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_recruiter
+    )
 ):
 
     job = reparse_job(
@@ -143,6 +177,7 @@ def reparse_existing_job(
     )
 
     if not job:
+
         raise HTTPException(
             status_code=404,
             detail="Job not found"

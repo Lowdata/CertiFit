@@ -12,7 +12,8 @@ from app.core.config import SECRET_KEY
 
 ALGORITHM = "HS256"
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+# Token expiration time in minutes (30 days) change it in production to 15 minutes
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30
 
 
 password_hash = PasswordHash.recommended()
