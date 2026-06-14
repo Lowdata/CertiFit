@@ -64,63 +64,99 @@ Backend completion estimate: **100% for intelligence layer MVP.**
 
 ```text
 backend/
-  backend.md
-  alembic.ini
-  alembic/
-    env.py
-    versions/
-      0001_baseline.py
-      0002_add_job_and_candidate_ownership.py
-      0003_create_applications.py
-      0004_add_candidate_github_profile.py
-      0005_add_candidate_linkedin_profile.py
-  app/
-    main.py
-    api/
-      app.py
-      applications.py
-      auth.py
-      candidates.py
-      jobs.py
-      interview.py       # empty placeholder, not registered
-      ranking.py         # empty placeholder, not registered
-    core/
-      config.py
-      dependencies.py
-      security.py
-    db/
-      database.py
-    models/
-      application.py
-      candidate.py
-      job.py
-      user.py
-    schemas/
-      application.py
-      auth.py
-      candidate.py
-      job.py
-    services/
-      application_service.py
-      auth_service.py
-      candidate_service.py
-      jd_parser.py
-      job_service.py
-      llm_candidate_analyzer.py
-      llm_job_analyzer.py
-      llm_validation.py
-      github_service.py
-      linkedin_service.py
-      resume_parser.py
-  tests/
-    conftest.py
-    test_applications.py
-    test_auth_privacy.py
-    test_github.py
-    test_parser_and_ranking.py
-    test_uploads.py
-  create.py              # local helper only
-  requirements.txt
+├── .DS_Store
+├── .env
+├── .gitignore
+├── .ruff_cache
+│   ├── .gitignore
+│   ├── 0.15.17
+│   │   ├── 10164641555254636396
+│   │   ├── 12425909410639152282
+│   │   ├── 13141606745771437314
+│   │   ├── 14615318185851385436
+│   │   ├── 2711651238882190232
+│   │   ├── 3312739995919045355
+│   │   ├── 3810446079376812575
+│   │   ├── 5147820736766571608
+│   │   ├── 6714994424221599821
+│   │   ├── 6941601905708641430
+│   │   └── 806615251138847837
+│   └── CACHEDIR.TAG
+├── FLAGS.md
+├── alembic
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions
+│       ├── 0001_baseline.py
+│       ├── 0002_add_job_and_candidate_ownership.py
+│       ├── 0003_create_applications.py
+│       ├── 0004_add_candidate_github_profile.py
+│       ├── 0005_add_candidate_linkedin_profile.py
+│       ├── 0006_add_normalized_trust_columns.py
+│       └── 0007_add_composite_ranking_columns.py
+├── alembic.ini
+├── app
+│   ├── api
+│   │   ├── app.py
+│   │   ├── applications.py
+│   │   ├── auth.py
+│   │   ├── candidates.py
+│   │   ├── interview.py
+│   │   ├── jobs.py
+│   │   └── ranking.py
+│   ├── core
+│   │   ├── config.py
+│   │   ├── dependencies.py
+│   │   └── security.py
+│   ├── db
+│   │   └── database.py
+│   ├── main.py
+│   ├── models
+│   │   ├── application.py
+│   │   ├── candidate.py
+│   │   ├── job.py
+│   │   └── user.py
+│   ├── schemas
+│   │   ├── application.py
+│   │   ├── auth.py
+│   │   ├── candidate.py
+│   │   └── job.py
+│   └── services
+│       ├── application_service.py
+│       ├── auth_service.py
+│       ├── candidate_service.py
+│       ├── github_service.py
+│       ├── interview_service.py
+│       ├── jd_parser.py
+│       ├── job_service.py
+│       ├── linkedin_service.py
+│       ├── llm_candidate_analyzer.py
+│       ├── llm_job_analyzer.py
+│       ├── llm_validation.py
+│       ├── profile_service.py
+│       ├── resume_parser.py
+│       └── trust_service.py
+├── backend.md
+├── create.py
+├── docs
+├── functions_catalog.md
+├── requirements.txt
+├── scratch_parse_linkedin.py
+├── tests
+│   ├── Profile.pdf
+│   ├── conftest.py
+│   ├── test_applications.py
+│   ├── test_auth_privacy.py
+│   ├── test_composite_ranking.py
+│   ├── test_github.py
+│   ├── test_interview.py
+│   ├── test_linkedin.py
+│   ├── test_parser_and_ranking.py
+│   ├── test_profile.py
+│   ├── test_trust.py
+│   ├── test_uploads.py
+│   └── testprofile.pdf
+└── uploads
 ```
 
 ## Tech Stack
