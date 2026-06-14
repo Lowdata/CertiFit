@@ -3,12 +3,10 @@
 
 ## Known Limitations & Roadmap (from backend.md)
 
-- Interview copilot is pending.
 - Candidate manual profile editing is pending.
 - Recruiter candidate detail endpoint scoped through application relationship is implemented via `GET /applications/{id}/candidate-report`.
 - Public job detail exposes raw JD and parsed JD.
 - Add recruiter-scoped candidate detail endpoint if product requires it.
-- Add stateless interview copilot endpoint.
 - Harden production config, CORS, token/session policy, upload scanning, and CI.
 
 ## Codebase Flags (TODOs, FIXMEs, etc.)
@@ -19,7 +17,7 @@
 
 ## Clean Code & Structural Issues
 
-- `app/api/interview.py` and `app/api/ranking.py` exist but are empty placeholders.
+- `app/api/ranking.py` exists but is an empty placeholder.
 - Pydantic `Field(example=...)` is deprecated in V2, need to migrate to `Field(json_schema_extra=...)` in schemas (e.g. `app/schemas/auth.py`).
 - SQLAlchemy `echo=True` should be disabled in production (`app/db/database.py`).
 - GitHub service uses unauthenticated public API calls, prone to rate limits.

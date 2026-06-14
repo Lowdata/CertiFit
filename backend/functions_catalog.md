@@ -171,7 +171,7 @@ def login(data, db):
 ```
 #### Function: `me`
 - **What it does**: No docstring provided.
-- **Where it is used**: app/models/candidate.py, app/models/user.py, app/models/application.py, app/services/profile_service.py, app/services/candidate_service.py, app/services/trust_service.py, app/models/job.py, app/services/llm_candidate_analyzer.py, app/services/linkedin_service.py
+- **Where it is used**: app/models/job.py, app/services/profile_service.py, app/services/linkedin_service.py, app/models/candidate.py, app/services/candidate_service.py, app/services/llm_candidate_analyzer.py, app/models/application.py, app/services/trust_service.py, app/models/user.py
 - **Pseudo-code**:
 ```python
 def me(current_user):
@@ -523,6 +523,16 @@ def _tech_values(tech_stack):
     if not isinstance(tech_stack, dict): ...
     for item in tech_stack.values(): ...
 ```
+#### Function: `_candidate_skill_terms`
+- **What it does**: Return the candidate's skill terms for matching.
+- **Where it is used**: Internal, Route Endpoint, or Not Exported
+- **Pseudo-code**:
+```python
+def _candidate_skill_terms(candidate):
+    profile = getattr(candidate, "normalized_profile_json", None) or {} ...
+    normalized_skills = profile.get("skills") ...
+    if normalized_skills: ...
+```
 #### Function: `calculate_match`
 - **What it does**: No docstring provided.
 - **Where it is used**: Internal, Route Endpoint, or Not Exported
@@ -548,10 +558,10 @@ def _composite_score(fit_score, trust_score):
 - **Where it is used**: Internal, Route Endpoint, or Not Exported
 - **Pseudo-code**:
 ```python
-def _build_score_explanations(fit_score, trust_score, composite_score, strengths, trust_data):
+def _build_score_explanations(fit_score, trust_score, composite_score, strengths, trust_data, profile):
     why: list[str] = [] ...
+    profile = profile or {} ...
     for strength in (trust_data.get("strengths") or [])[:3]: ...
-    for concern in (trust_data.get("concerns") or [])[:3]: ...
 ```
 #### Function: `create_application`
 - **What it does**: No docstring provided.
@@ -588,6 +598,16 @@ def update_application_status(db, application_id, recruiter_id, status):
     if status not in ALLOWED_APPLICATION_STATUSES: ...
     application = ( ...
     if not application: ...
+```
+#### Function: `build_claims_report`
+- **What it does**: Build a per-skill transparency report for the recruiter candidate report.
+- **Where it is used**: app/api/applications.py
+- **Pseudo-code**:
+```python
+def build_claims_report(candidate):
+    profile = getattr(candidate, "normalized_profile_json", None) or {} ...
+    evidence_map = profile.get("evidence_map") or {} ...
+    skill_confidence = profile.get("skill_confidence") or {} ...
 ```
 
 ### File: `app/services/auth_service.py`
@@ -645,7 +665,7 @@ def get_candidate_by_id(db, candidate_id):
 ```
 #### Function: `get_candidate_by_user_id`
 - **What it does**: No docstring provided.
-- **Where it is used**: app/api/applications.py, app/api/jobs.py, app/api/candidates.py
+- **Where it is used**: app/api/candidates.py, app/api/jobs.py, app/api/applications.py
 - **Pseudo-code**:
 ```python
 def get_candidate_by_user_id(db, user_id):
@@ -800,18 +820,18 @@ def _fallback_interview_plan(reason):
     return { ...
 ```
 #### Function: `_llm_enrich_questions`
-- **What it does**: Use Gemini to improve question quality and naturalness.
+- **What it does**: Use Gemini to generate deep, profile-aware interview questions grounded in
 - **Where it is used**: Internal, Route Endpoint, or Not Exported
 - **Pseudo-code**:
 ```python
-def _llm_enrich_questions(technical, behavioral, verification, project, job_title):
+def _llm_enrich_questions(technical, behavioral, verification, project, job_title, job_description, candidate_profile, trust_data, fit_score, trust_score):
     try: ...
-    prompt = f"""You are an expert technical interviewer helping prepare for a {job_title} interview. ...
+    prompt = f"""You are an Expert Technical Interviewer hiring for the role of {job_title}. ...
     schema_keys = [ ...
 ```
 #### Function: `generate_interview_plan`
 - **What it does**: Generate a structured interview plan.
-- **Where it is used**: app/api/applications.py, app/api/interview.py
+- **Where it is used**: app/api/interview.py, app/api/applications.py
 - **Pseudo-code**:
 ```python
 def generate_interview_plan(job, candidate, application):
@@ -1230,12 +1250,14 @@ def _normalise(skill):
     return re.sub(r"[^a-z0-9#+.]", "", skill.lower()) ...
 ```
 #### Function: `_canonical`
-- **What it does**: Return the display-form skill string, stripped.
+- **What it does**: Return the canonical display-form for a skill.
 - **Where it is used**: Internal, Route Endpoint, or Not Exported
 - **Pseudo-code**:
 ```python
 def _canonical(skill):
-    return skill.strip() ...
+    key = _normalise(skill) ...
+    mapped = CANONICAL_SKILL_MAP.get(key) ...
+    if mapped: ...
 ```
 #### Function: `_as_list`
 - **What it does**: No docstring provided.
@@ -1457,7 +1479,7 @@ def _title_consistency_check(parsed, linkedin):
     resume_role = (parsed.get("current_role") or "").lower() ...
 ```
 #### Function: `_skill_evidence_check`
-- **What it does**: Score skills by evidence source count.
+- **What it does**: Score skills by the *quality* of their evidence, not just source count.
 - **Where it is used**: Internal, Route Endpoint, or Not Exported
 - **Pseudo-code**:
 ```python
