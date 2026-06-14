@@ -8,7 +8,7 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_TIMEOUT_MS = 12_000
+GEMINI_TIMEOUT_MS = 30_000
 GEMINI_RETRY_ATTEMPTS = 2
 
 
@@ -234,8 +234,13 @@ def safe_gemini_call(
         except Exception:
             pass
 
-        if finish_reason and finish_reason not in ("STOP", "MAX_TOKENS", ""):
-            raise ValueError(f"safety_blocked:{finish_reason}")
+        if finish_reason:
+            is_success = any(
+                term in finish_reason
+                for term in ("STOP", "MAX_TOKENS", "SUCCESS")
+            ) or finish_reason == ""
+            if not is_success:
+                raise ValueError(f"safety_blocked:{finish_reason}")
 
         text = getattr(response, "text", None)
         data = parse_json_object(text)
