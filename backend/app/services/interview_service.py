@@ -12,7 +12,8 @@ Output:
     "technical_questions": [],
     "behavioral_questions": [],
     "verification_questions": [],
-    "project_questions": []
+    "project_questions": [],
+    "optimisation_based_questions": []
 }
 
 Gemini is used to generate natural question text.
@@ -191,6 +192,7 @@ def _fallback_interview_plan(reason: str) -> dict[str, Any]:
         "behavioral_questions": [],
         "verification_questions": [],
         "project_questions": [],
+        "optimisation_based_questions": [],
         "_reason": reason,
     }
 
@@ -201,10 +203,16 @@ def _llm_enrich_questions(
     verification: list[str],
     project: list[str],
     job_title: str,
+    job_description: dict,
+    candidate_profile: dict,
+    trust_data: dict,
+    fit_score: float,
+    trust_score: float,
 ) -> dict[str, Any]:
     """
-    Use Gemini to improve question quality and naturalness.
-    Falls back to deterministic questions on any failure.
+    Use Gemini to generate deep, profile-aware interview questions grounded in
+    the candidate's actual profile, the job description, and their fit/trust
+    scores. Falls back to deterministic questions on any failure.
     """
     try:
         from google import genai
@@ -219,37 +227,44 @@ def _llm_enrich_questions(
             "behavioral_questions": behavioral,
             "verification_questions": verification,
             "project_questions": project,
+            "optimisation_based_questions": [],
         }
 
-    prompt = f"""You are an expert technical interviewer helping prepare for a {job_title} interview.
+    prompt = f"""You are an Expert Technical Interviewer hiring for the role of {job_title}.
 
-Improve these questions to be more specific, probing, and natural-sounding for a senior engineering interview.
-Keep the same intent but make them better.
+=== JOB DESCRIPTION ===
+{json.dumps(job_description, indent=2)}
 
-Technical questions to improve:
-{json.dumps(technical, indent=2)}
+=== CANDIDATE PROFILE ===
+Fit Score: {fit_score}/100
+Trust Score: {trust_score}/100
 
-Behavioral questions to improve:
-{json.dumps(behavioral, indent=2)}
+Profile Data:
+{json.dumps(candidate_profile, indent=2)}
 
-Verification questions to improve (these probe inconsistencies — keep them diplomatic but direct):
-{json.dumps(verification, indent=2)}
+Trust Concerns (Unverified Claims):
+{json.dumps(trust_data.get('unsupported_claims', []), indent=2)}
 
-Project questions to improve:
-{json.dumps(project, indent=2)}
+=== TASK ===
+Based heavily on the Candidate Profile's actual projects, skills, and experience, generate a 30-minute interview plan.
+
+1. technical_questions: Generate 3 deep technical questions. If the candidate has high experience or high scores, include tough architectural or optimization questions based specifically on the tech stack in their profile (e.g., "In your X project, how did you handle database indexing for...").
+2. behavioral_questions: Generate 2 behavioral questions tailored to their seniority level.
+3. verification_questions: Generate 2 questions that directly probe their "Trust Concerns" or unverified claims. Ask for specific proof of their involvement.
+4. project_questions: Generate 2 questions asking them to walk through specific projects listed in their profile data.
+5. optimisation_based_questions: Generate 2 questions that probe any quantified impact claims in the candidate's profile (e.g. "improved performance by 34%", "handled 50% more traffic"). Such numbers are often added to pass ATS screening and can be exaggerated, so ask the candidate to explain the baseline, methodology, and how the improvement was measured — only someone who actually did the work can answer in detail.
 
 Return ONLY valid JSON in this exact shape:
 {{
-  "technical_questions": ["<improved question>"],
-  "behavioral_questions": ["<improved question>"],
-  "verification_questions": ["<improved question>"],
-  "project_questions": ["<improved question>"]
+  "technical_questions": ["<question 1>", "<question 2>", "<question 3>"],
+  "behavioral_questions": ["<question 1>", "<question 2>"],
+  "verification_questions": ["<question 1>", "<question 2>"],
+  "project_questions": ["<question 1>", "<question 2>"],
+  "optimisation_based_questions": ["<question 1>", "<question 2>"]
 }}
 
 Rules:
-- Keep all verification questions — they probe important inconsistencies
-- Do NOT add new questions not in the input
-- Keep count the same or reduce if question is too similar to another
+- Ground every question in specific details from the Candidate Profile and Job Description
 - Do NOT mention any specific candidate name
 """
 
@@ -258,6 +273,7 @@ Rules:
         "behavioral_questions",
         "verification_questions",
         "project_questions",
+        "optimisation_based_questions",
     ]
 
     def _fallback(reason: str) -> dict:
@@ -266,6 +282,7 @@ Rules:
             "behavioral_questions": behavioral,
             "verification_questions": verification,
             "project_questions": project,
+            "optimisation_based_questions": [],
         }
 
     result, meta = safe_gemini_call(
@@ -283,6 +300,7 @@ Rules:
         ("behavioral_questions", behavioral),
         ("verification_questions", verification),
         ("project_questions", project),
+        ("optimisation_based_questions", []),
     ]:
         val = result.get(key)
         out[key] = val if isinstance(val, list) and val else fallback_val
@@ -302,12 +320,18 @@ def generate_interview_plan(
     """
     Generate a structured interview plan.
 
-    Consumes job parsed JD, candidate normalized profile, and trust findings.
-    Uses Gemini to polish question text; falls back to deterministic templates.
+    Consumes job parsed JD, candidate normalized profile, trust findings, and
+    the application's fit/trust scores. Uses Gemini to generate deep,
+    profile-aware questions; falls back to deterministic templates.
     """
     job_data = job.parsed_jd_json or {}
     profile = candidate.normalized_profile_json or {}
     trust_data = candidate.trust_score_json or {}
+
+    fit_score = application.fit_score
+    trust_score = application.trust_score
+    candidate_profile = candidate.normalized_profile_json or candidate.parsed_candidate_json or {}
+    job_description = job.parsed_jd_json or {}
 
     required_skills = job_data.get("required_skills") or []
     job_title = job_data.get("role") or job.title or "Software Engineer"
@@ -326,6 +350,11 @@ def generate_interview_plan(
             verification=verification,
             project=project,
             job_title=job_title,
+            job_description=job_description,
+            candidate_profile=candidate_profile,
+            trust_data=trust_data,
+            fit_score=fit_score,
+            trust_score=trust_score,
         )
     except Exception:
         logger.exception("Interview LLM enrichment failed; using deterministic questions")
@@ -334,6 +363,7 @@ def generate_interview_plan(
             "behavioral_questions": behavioral,
             "verification_questions": verification,
             "project_questions": project,
+            "optimisation_based_questions": [],
         }
 
     return {
@@ -341,4 +371,5 @@ def generate_interview_plan(
         "behavioral_questions": enriched.get("behavioral_questions") or behavioral,
         "verification_questions": enriched.get("verification_questions") or verification,
         "project_questions": enriched.get("project_questions") or project,
+        "optimisation_based_questions": enriched.get("optimisation_based_questions") or [],
     }

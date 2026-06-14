@@ -33,10 +33,11 @@ def _mock_candidate(profile=None, trust=None):
     return c
 
 
-def _mock_application(fit=75.0, composite=68.0):
+def _mock_application(fit=75.0, composite=68.0, trust=70.0):
     a = MagicMock()
     a.fit_score = fit
     a.composite_score = composite
+    a.trust_score = trust
     return a
 
 
@@ -171,6 +172,7 @@ class TestGenerateInterviewPlan:
         assert "behavioral_questions" in plan
         assert "verification_questions" in plan
         assert "project_questions" in plan
+        assert "optimisation_based_questions" in plan
         assert isinstance(plan["technical_questions"], list)
 
     def test_verification_questions_from_trust(self):
@@ -215,6 +217,7 @@ class TestGenerateInterviewPlan:
             "behavioral_questions": ["Enriched behavioral question?"],
             "verification_questions": [],
             "project_questions": ["Enriched project question?"],
+            "optimisation_based_questions": ["Enriched optimisation question?"],
         }
 
         with patch("app.services.interview_service._llm_enrich_questions",
