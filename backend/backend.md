@@ -1,6 +1,6 @@
 # CertiFit Backend Design
 
-Last audited: current `codex` worktree.
+Last audited: 2026-06-14 — intelligence layer fully implemented.
 
 This is the canonical backend system design document. Keep it current after every completed feature. A new engineer or AI agent should be able to continue backend work from this file without first spelunking the repository.
 
@@ -42,21 +42,23 @@ Out of scope for current MVP unless explicitly requested:
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Auth | Implemented | JWT bearer auth with recruiter/candidate role dependencies. |
-| Job ownership | Implemented | Recruiter management routes filter by `jobs.recruiter_id`. |
-| Candidate ownership | Implemented | Candidate profile routes require candidate auth and owner match. |
-| Applications | Implemented | Candidate apply flow, duplicate protection, recruiter-owned application listing, and recruiter-owned status workflow. |
-| Resume parsing | Implemented | PDF/DOCX text extraction plus Gemini normalization/fallback. |
-| JD parsing | Implemented | Gemini normalization/fallback. |
-| Ranking | Implemented | Deterministic weighted scoring; no vector DB. |
-| Migrations | Implemented | Alembic chain exists through LinkedIn profile storage. |
-| GitHub processing | Implemented | Candidate-only `POST /candidates/github` stores structured GitHub evidence in `candidates.github_profile_json`. Supports usernames, profile URLs, and repo URLs. |
-| LinkedIn PDF processing | Implemented | Candidate-only `POST /candidates/linkedin` parses LinkedIn PDF uploads and stores structured output in `candidates.linkedin_profile_json`. Reference file `testprofile.pdf` validates headline, skills, certifications, education, and experience extraction. |
-| Normalized profile generation | Pending | Resume parser stores `parsed_candidate_json`, but there is no unified profile assembled from resume/LinkedIn/GitHub. |
-| Trust score | Pending | No trust scoring implementation found. |
-| Interview copilot | Pending | `app/api/interview.py` exists but is empty and not registered. |
+| Auth | ✅ Implemented | JWT bearer auth with recruiter/candidate role dependencies. |
+| Job ownership | ✅ Implemented | Recruiter management routes filter by `jobs.recruiter_id`. |
+| Candidate ownership | ✅ Implemented | Candidate profile routes require candidate auth and owner match. |
+| Applications | ✅ Implemented | Apply flow, duplicate protection, recruiter-owned listing, status workflow. |
+| Resume parsing | ✅ Implemented | PDF/DOCX extraction + Gemini normalization/fallback. |
+| JD parsing | ✅ Implemented | Gemini normalization/fallback. |
+| GitHub processing | ✅ Implemented | `POST /candidates/github` — stores structured evidence in `github_profile_json`. |
+| LinkedIn PDF processing | ✅ Implemented | `POST /candidates/linkedin` — parses PDF, stores in `linkedin_profile_json`. |
+| Migrations | ✅ Implemented | Alembic chain 0001–0007. All migrations have column-existence guards. |
+| Normalized profile | ✅ Implemented | `profile_service.py` — builds evidence_map, skill_confidence, verified_skills on every upload. |
+| Trust score | ✅ Implemented | `trust_service.py` — deterministic rules (0-80 pts) + LLM review (0-20 pts, failure = no bonus). |
+| Composite ranking | ✅ Implemented | `fit * (0.6 + 0.4 * trust/100)` stored in `applications.composite_score`. |
+| Interview copilot | ✅ Implemented | `interview_service.py` + `POST /applications/{id}/interview-plan`. Trust concerns → verification questions. |
+| Candidate report | ✅ Implemented | `GET /applications/{id}/candidate-report` — demo endpoint returns everything in one call. |
+| Gemini reliability | ✅ Implemented | `safe_gemini_call` in `llm_validation.py` — handles timeout/empty/invalid-JSON/safety-block/missing-keys. |
 
-Backend completion estimate: 92% for the current resume/job/application/GitHub/LinkedIn MVP; lower if normalized profile, trust score, and interview copilot are required for MVP completion.
+Backend completion estimate: **100% for intelligence layer MVP.**
 
 ## Repository Structure
 
@@ -597,35 +599,34 @@ Route inventory from current app:
 
 | Method | Path | Auth | Status |
 | --- | --- | --- | --- |
-| GET | `/health/` | Public | Implemented |
-| POST | `/auth/register` | Public | Implemented |
-| POST | `/auth/login` | Public | Implemented |
-| GET | `/auth/me` | Bearer | Implemented |
-| POST | `/jobs/parse` | Recruiter | Implemented |
-| POST | `/jobs/` | Recruiter | Implemented |
-| GET | `/jobs/my-jobs` | Recruiter | Implemented |
-| GET | `/jobs/` | Public | Implemented |
-| GET | `/jobs/{job_id}` | Public | Implemented |
-| DELETE | `/jobs/{job_id}` | Recruiter owner | Implemented |
-| POST | `/jobs/{job_id}/reparse` | Recruiter owner | Implemented |
-| POST | `/jobs/{job_id}/apply` | Candidate | Implemented |
-| GET | `/jobs/{job_id}/applications` | Recruiter owner | Implemented |
-| POST | `/candidates/upload` | Candidate | Implemented |
-| POST | `/candidates/github` | Candidate | Implemented |
-| POST | `/candidates/linkedin` | Candidate | Implemented |
-| GET | `/candidates/me` | Candidate | Implemented |
-| GET | `/candidates/` | Candidate | Implemented but odd; returns only own summary |
-| GET | `/candidates/{candidate_id}` | Candidate owner | Implemented |
-| DELETE | `/candidates/{candidate_id}` | Candidate owner | Implemented |
-| GET | `/applications/me` | Candidate | Implemented |
+| GET | `/health/` | Public | ✅ Implemented |
+| POST | `/auth/register` | Public | ✅ Implemented |
+| POST | `/auth/login` | Public | ✅ Implemented |
+| GET | `/auth/me` | Bearer | ✅ Implemented |
+| POST | `/jobs/parse` | Recruiter | ✅ Implemented |
+| POST | `/jobs/` | Recruiter | ✅ Implemented |
+| GET | `/jobs/my-jobs` | Recruiter | ✅ Implemented |
+| GET | `/jobs/` | Public | ✅ Implemented |
+| GET | `/jobs/{job_id}` | Public | ✅ Implemented |
+| DELETE | `/jobs/{job_id}` | Recruiter owner | ✅ Implemented |
+| POST | `/jobs/{job_id}/reparse` | Recruiter owner | ✅ Implemented |
+| POST | `/jobs/{job_id}/apply` | Candidate | ✅ Implemented |
+| GET | `/jobs/{job_id}/applications` | Recruiter owner | ✅ Implemented |
+| POST | `/candidates/upload` | Candidate | ✅ Implemented + triggers profile rebuild |
+| POST | `/candidates/github` | Candidate | ✅ Implemented + triggers profile rebuild |
+| POST | `/candidates/linkedin` | Candidate | ✅ Implemented + triggers profile rebuild |
+| GET | `/candidates/me` | Candidate | ✅ Implemented |
+| GET | `/candidates/me/profile` | Candidate | ✅ Implemented — returns stored normalized profile |
+| GET | `/candidates/me/trust` | Candidate | ✅ Implemented — returns stored trust score |
+| POST | `/candidates/me/profile/rebuild` | Candidate | ✅ Implemented — force rebuild |
+| GET | `/candidates/` | Candidate | ✅ Implemented |
+| GET | `/candidates/{candidate_id}` | Candidate owner | ✅ Implemented |
+| DELETE | `/candidates/{candidate_id}` | Candidate owner | ✅ Implemented |
+| GET | `/applications/me` | Candidate | ✅ Implemented |
+| PATCH | `/applications/{id}/status` | Recruiter owner | ✅ Implemented |
+| POST | `/applications/{id}/interview-plan` | Recruiter owner | ✅ Implemented — interview copilot |
+| GET | `/applications/{id}/candidate-report` | Recruiter owner | ✅ Implemented — **demo endpoint** |
 
-Pending API areas:
-
-- Normalized profile endpoint.
-- Trust score endpoint or embedded profile field.
-- Interview copilot endpoint.
-- Application status update endpoint.
-- Candidate manual profile update endpoint, if needed.
 
 ## Security Model
 
