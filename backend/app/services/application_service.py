@@ -6,6 +6,7 @@ from datetime import datetime
 from app.models.application import Application
 from app.models.candidate import Candidate
 from app.models.job import Job
+from app.services.profile_service import CANONICAL_SKILL_MAP
 
 
 logger = logging.getLogger(__name__)
@@ -28,19 +29,11 @@ APPLICATION_STATUS_TRANSITIONS = {
     "hired": set(),
 }
 
-TERM_ALIASES = {
-    "js": "JavaScript",
-    "javascript": "JavaScript",
-    "node": "Node.js",
-    "nodejs": "Node.js",
-    "node.js": "Node.js",
-    "postgres": "PostgreSQL",
-    "postgresql": "PostgreSQL",
-    "reactjs": "React",
-    "react.js": "React",
-    "ts": "TypeScript",
-    "typescript": "TypeScript",
-}
+# Skill alias resolution now reuses the single canonical skill map maintained
+# in profile_service, so ranking, evidence_map, and trust scoring all treat
+# "JS"/"Node"/"Postgres"/etc. as the same canonical skill. TERM_ALIASES is
+# kept as a thin backward-compatible alias for any external references.
+TERM_ALIASES = CANONICAL_SKILL_MAP
 
 
 class ApplicationNotFoundError(ValueError):
@@ -65,7 +58,7 @@ def _canonical_term(value) -> str:
         return ""
 
     key = re.sub(r"[^a-z0-9+#.]", "", cleaned.lower())
-    return TERM_ALIASES.get(key, cleaned)
+    return CANONICAL_SKILL_MAP.get(key, cleaned)
 
 
 def _as_set(values):
@@ -94,6 +87,27 @@ def _tech_values(tech_stack: dict):
     return values
 
 
+def _candidate_skill_terms(candidate: Candidate) -> list:
+    """
+    Return the candidate's skill terms for matching.
+
+    Prefers the normalized profile's canonical, cross-source-merged skill
+    list (built from resume + LinkedIn + GitHub via profile_service) so that
+    aliases like "JS"/"Node"/"Postgres" on a job description correctly match
+    a candidate whose evidence uses "JavaScript"/"Node.js"/"PostgreSQL" (or
+    vice versa). Falls back to the raw resume-parsed skills if no normalized
+    profile has been built yet (e.g. immediately after first upload, before
+    a rebuild).
+    """
+    profile = getattr(candidate, "normalized_profile_json", None) or {}
+    normalized_skills = profile.get("skills")
+    if normalized_skills:
+        return normalized_skills
+
+    candidate_data = candidate.parsed_candidate_json or {}
+    return candidate_data.get("skills", [])
+
+
 def calculate_match(
     job: Job,
     candidate: Candidate
@@ -109,15 +123,22 @@ def calculate_match(
         job_data.get("inferred_skills", [])
     )
     candidate_skills = _as_set(
-        candidate_data.get("skills", [])
+        _candidate_skill_terms(candidate)
     )
 
     job_tech = _as_set(
         _tech_values(job_data.get("tech_stack", {}))
     )
-    candidate_tech = _as_set(
-        _tech_values(candidate_data.get("tech_stack", {}))
-    )
+
+    profile = getattr(candidate, "normalized_profile_json", None) or {}
+    if profile.get("skills"):
+        # Normalized profile already flattens tech_stack into its canonical
+        # skills list across resume + LinkedIn + GitHub.
+        candidate_tech = _as_set(profile.get("skills"))
+    else:
+        candidate_tech = _as_set(
+            _tech_values(candidate_data.get("tech_stack", {}))
+        )
 
     required_skill_matches = required_skills.intersection(
         candidate_skills
@@ -213,9 +234,11 @@ def _build_score_explanations(
     composite_score: float,
     strengths: list,
     trust_data: dict,
+    profile: dict | None = None,
 ) -> dict:
     """Build the human-readable score_explanations dict."""
     why: list[str] = []
+    profile = profile or {}
 
     # Positive signals
     for strength in (trust_data.get("strengths") or [])[:3]:
@@ -231,9 +254,17 @@ def _build_score_explanations(
         skills_str = ", ".join(unsupported[:3])
         why.append(f"Unverified claims: {skills_str} — resume only, no corroboration")
 
-    # Skill strengths from match
+    # Skill strengths from match, annotated with confidence where known
     if strengths:
-        why.append(f"Matched skills: {', '.join(str(s) for s in strengths[:4])}")
+        skill_confidence = profile.get("skill_confidence") or {}
+        annotated = []
+        for skill in strengths[:4]:
+            conf = skill_confidence.get(skill)
+            if conf is not None:
+                annotated.append(f"{skill} ({conf}% confidence)")
+            else:
+                annotated.append(str(skill))
+        why.append(f"Matched skills: {', '.join(annotated)}")
 
     return {
         "fit": round(fit_score, 2),
@@ -293,6 +324,7 @@ def create_application(
         composite_score=composite,
         strengths=match["strengths"],
         trust_data=trust_data,
+        profile=getattr(candidate, "normalized_profile_json", None) or {},
     )
 
     application = Application(
@@ -404,3 +436,43 @@ def update_application_status(
     db.refresh(application)
 
     return application
+
+
+# ---------------------------------------------------------------------------
+# Candidate report transparency
+# ---------------------------------------------------------------------------
+
+def build_claims_report(candidate: Candidate) -> list[dict]:
+    """
+    Build a per-skill transparency report for the recruiter candidate report.
+
+    For every canonical skill in the candidate's normalized evidence_map,
+    returns a dict describing:
+      - skill: canonical skill name
+      - sources: which data sources back this claim (resume/linkedin/github)
+      - confidence: skill_confidence score (30/50/70/100)
+      - verified: True if backed by 2+ sources
+      - status: "verified" | "unverified" — recruiter-facing label
+
+    This gives recruiters claim-by-claim evidence transparency rather than
+    just an aggregate trust score.
+    """
+    profile = getattr(candidate, "normalized_profile_json", None) or {}
+    evidence_map = profile.get("evidence_map") or {}
+    skill_confidence = profile.get("skill_confidence") or {}
+    verified_skills = set(profile.get("verified_skills") or [])
+
+    claims: list[dict] = []
+    for skill, sources in evidence_map.items():
+        is_verified = skill in verified_skills or len(sources) >= 2
+        claims.append({
+            "skill": skill,
+            "sources": sorted(sources),
+            "confidence": skill_confidence.get(skill, 0),
+            "verified": is_verified,
+            "status": "verified" if is_verified else "unverified",
+        })
+
+    # Most confident / well-evidenced claims first, for recruiter scanning
+    claims.sort(key=lambda c: (-c["confidence"], c["skill"]))
+    return claims

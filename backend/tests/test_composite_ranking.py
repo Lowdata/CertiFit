@@ -2,10 +2,12 @@
 Tests for composite ranking formula and score_explanations.
 """
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from app.services.application_service import (
     _composite_score,
     _build_score_explanations,
+    calculate_match,
+    build_claims_report,
 )
 
 
@@ -105,6 +107,147 @@ class TestBuildScoreExplanations:
     def test_empty_trust_data(self):
         exp = _build_score_explanations(50.0, 50.0, 50.0, [], {})
         assert isinstance(exp["why"], list)
+
+    def test_matched_skills_annotated_with_confidence(self):
+        exp = _build_score_explanations(
+            fit_score=80.0,
+            trust_score=70.0,
+            composite_score=73.6,
+            strengths=["Python", "AWS"],
+            trust_data={},
+            profile={"skill_confidence": {"Python": 100, "AWS": 70}},
+        )
+        why_text = " ".join(exp["why"])
+        assert "Python (100% confidence)" in why_text
+        assert "AWS (70% confidence)" in why_text
+
+    def test_matched_skills_without_profile_unannotated(self):
+        exp = _build_score_explanations(
+            fit_score=80.0,
+            trust_score=70.0,
+            composite_score=73.6,
+            strengths=["Python", "AWS"],
+            trust_data={},
+        )
+        why_text = " ".join(exp["why"])
+        assert "Matched skills: Python, AWS" in why_text
+
+
+class TestCalculateMatchUsesNormalizedProfile:
+    def _job(self, required_skills, tech_stack=None, inferred_skills=None, experience_years=0):
+        job = MagicMock()
+        job.parsed_jd_json = {
+            "required_skills": required_skills,
+            "inferred_skills": inferred_skills or [],
+            "tech_stack": tech_stack or {},
+            "experience_years": experience_years,
+        }
+        return job
+
+    def _candidate(self, parsed_skills=None, normalized_profile=None):
+        candidate = MagicMock()
+        candidate.parsed_candidate_json = {
+            "skills": parsed_skills or [],
+            "tech_stack": {},
+            "years_experience": 0,
+        }
+        candidate.normalized_profile_json = normalized_profile or {}
+        return candidate
+
+    def test_alias_match_via_normalized_profile(self):
+        """
+        JD requires "Node.js". Resume only said "Node", but the normalized
+        profile (built across resume/LinkedIn/GitHub) canonicalizes this to
+        "Node.js". Matching against normalized skills should find the hit
+        even though the raw resume skill list wouldn't.
+        """
+        job = self._job(required_skills=["Node.js"])
+        candidate = self._candidate(
+            parsed_skills=["Node"],
+            normalized_profile={"skills": ["Node.js"]},
+        )
+
+        match = calculate_match(job=job, candidate=candidate)
+
+        assert "Node.js" in match["strengths"]
+        assert "Node.js" not in match["gaps"]
+        assert match["score"] > 0
+
+    def test_falls_back_to_raw_skills_without_normalized_profile(self):
+        """If no normalized profile exists yet, fall back to raw parsed skills."""
+        job = self._job(required_skills=["Python"])
+        candidate = self._candidate(
+            parsed_skills=["Python"],
+            normalized_profile={},
+        )
+
+        match = calculate_match(job=job, candidate=candidate)
+
+        assert "Python" in match["strengths"]
+
+    def test_without_normalized_profile_alias_mismatch_creates_gap(self):
+        """
+        Without a normalized profile, "Node" (raw resume skill) does not
+        directly equal "Node.js" unless canonicalized via _as_set — but
+        _as_set already canonicalizes via CANONICAL_SKILL_MAP, so this
+        should still match. This documents that even the raw fallback
+        benefits from canonical term resolution.
+        """
+        job = self._job(required_skills=["Node.js"])
+        candidate = self._candidate(
+            parsed_skills=["Node"],
+            normalized_profile={},
+        )
+
+        match = calculate_match(job=job, candidate=candidate)
+
+        assert "Node.js" in match["strengths"]
+
+
+class TestBuildClaimsReport:
+    def test_empty_profile_returns_no_claims(self):
+        candidate = MagicMock()
+        candidate.normalized_profile_json = {}
+        claims = build_claims_report(candidate)
+        assert claims == []
+
+    def test_verified_vs_unverified_claims(self):
+        candidate = MagicMock()
+        candidate.normalized_profile_json = {
+            "evidence_map": {
+                "Python": ["resume", "github"],
+                "Kubernetes": ["resume"],
+            },
+            "skill_confidence": {"Python": 100, "Kubernetes": 30},
+            "verified_skills": ["Python"],
+        }
+        claims = build_claims_report(candidate)
+
+        by_skill = {c["skill"]: c for c in claims}
+        assert by_skill["Python"]["verified"] is True
+        assert by_skill["Python"]["status"] == "verified"
+        assert by_skill["Python"]["confidence"] == 100
+        assert sorted(by_skill["Python"]["sources"]) == ["github", "resume"]
+
+        assert by_skill["Kubernetes"]["verified"] is False
+        assert by_skill["Kubernetes"]["status"] == "unverified"
+        assert by_skill["Kubernetes"]["confidence"] == 30
+
+    def test_claims_sorted_by_confidence_descending(self):
+        candidate = MagicMock()
+        candidate.normalized_profile_json = {
+            "evidence_map": {
+                "A": ["resume"],
+                "B": ["resume", "github", "linkedin"],
+                "C": ["resume", "linkedin"],
+            },
+            "skill_confidence": {"A": 30, "B": 100, "C": 70},
+            "verified_skills": ["B", "C"],
+        }
+        claims = build_claims_report(candidate)
+        confidences = [c["confidence"] for c in claims]
+        assert confidences == sorted(confidences, reverse=True)
+        assert claims[0]["skill"] == "B"
 
 
 class TestCompositeOnApplication:
