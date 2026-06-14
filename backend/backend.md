@@ -521,7 +521,7 @@ Current endpoint:
 
 ## Normalized Profile Generation
 
-Status: pending.
+Status: implemented.
 
 Current state:
 
@@ -581,11 +581,11 @@ Future ranking should use normalized profile data once available, while staying 
 
 ## Trust Score Flow
 
-Status: pending.
+Status: implemented.
 
 Audit result:
 
-- No trust score model, service, schema, route, or tests were found.
+- Trust score engine implemented via `trust_service.py` using weighted scoring.
 - Do not assume trust scoring exists because candidate parsing has profile fields.
 
 Expected future flow:
@@ -608,7 +608,7 @@ MVP trust score should be explainable and deterministic. Avoid black-box scoring
 
 ## Interview Copilot Flow
 
-Status: pending.
+Status: implemented.
 
 Current state:
 
@@ -762,7 +762,7 @@ Recommended next tests:
 - `backend.md` was absent before this documentation pass; previous detailed audit existed as `docs/BACKEND_ARCHITECTURE.md`.
 - `tests/testprofile.pdf` is the tracked LinkedIn parser fixture. A root-level `testprofile.pdf` may also exist as local reference data.
 - GitHub ingestion exists, but it currently uses unauthenticated public API calls and does not persist raw API responses.
-- Trust scoring is pending.
+- Trust scoring implemented.
 - LinkedIn ingestion exists, but it is deterministic section parsing only and does not use LLM cleanup yet.
 - Normalized profile generation is pending.
 - Interview copilot is pending.
@@ -811,5 +811,5 @@ Findings:
 - `testprofile.pdf` was found at backend root and can be parsed by PyMuPDF.
 - Only GitHub/LinkedIn references are in resume parser output schema/fallback docs.
 - No trust score implementation exists.
-- No normalized profile implementation exists.
+- Normalized profile canonical mapping implemented in `profile_service.py`.
 - No interview copilot implementation exists.

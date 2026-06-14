@@ -3,15 +3,10 @@
 
 ## Known Limitations & Roadmap (from backend.md)
 
-- Trust scoring is pending.
-- Normalized profile generation is pending.
 - Interview copilot is pending.
 - Candidate manual profile editing is pending.
-- Recruiter candidate detail endpoint scoped through application relationship is pending.
+- Recruiter candidate detail endpoint scoped through application relationship is implemented via `GET /applications/{id}/candidate-report`.
 - Public job detail exposes raw JD and parsed JD.
-- Add normalized profile storage and generation.
-- Add deterministic trust score engine.
-- Update ranking to read normalized profile while preserving deterministic MVP behavior.
 - Add recruiter-scoped candidate detail endpoint if product requires it.
 - Add stateless interview copilot endpoint.
 - Harden production config, CORS, token/session policy, upload scanning, and CI.
