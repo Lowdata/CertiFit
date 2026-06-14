@@ -185,3 +185,79 @@ def normalize_candidate_analysis(data: dict[str, Any]) -> dict[str, Any]:
     ):
         merged[key] = _as_list(merged.get(key))
     return merged
+
+
+def safe_gemini_call(
+    client,
+    prompt: str,
+    schema_keys: list[str],
+    fallback_fn,
+    label: str = "gemini",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    Wraps a Gemini generate_content call with full error handling.
+
+    Returns (result_dict, metadata) where:
+        result_dict  — usable dict (from LLM or fallback)
+        metadata     — {status, error_reason, fallback_used}
+
+    Handles:
+        - timeout / network failure
+        - empty or None response text
+        - invalid JSON
+        - safety-blocked response
+        - missing required schema keys (partial merge)
+
+    Never raises. Always returns something usable.
+    """
+    metadata: dict[str, Any] = {
+        "status": "ok",
+        "error_reason": None,
+        "fallback_used": False,
+    }
+
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=gemini_json_config(),
+        )
+
+        # Check for safety block
+        finish_reason = None
+        try:
+            candidates = getattr(response, "candidates", None) or []
+            if candidates:
+                finish_reason = str(
+                    getattr(candidates[0], "finish_reason", "") or ""
+                ).upper()
+        except Exception:
+            pass
+
+        if finish_reason and finish_reason not in ("STOP", "MAX_TOKENS", ""):
+            raise ValueError(f"safety_blocked:{finish_reason}")
+
+        text = getattr(response, "text", None)
+        data = parse_json_object(text)
+
+        # Verify schema completeness — fill in missing keys from fallback
+        fallback = fallback_fn(f"{label}_missing_keys")
+        for key in schema_keys:
+            if key not in data:
+                data[key] = fallback.get(key)
+                metadata["status"] = "partial"
+
+        return data, metadata
+
+    except ValueError as exc:
+        reason = str(exc)
+        logger.warning("%s LLM call failed: %s", label, reason)
+        metadata.update(status="error", error_reason=reason, fallback_used=True)
+        return fallback_fn(f"{label}_error:{reason}"), metadata
+
+    except Exception as exc:
+        reason = f"unexpected:{type(exc).__name__}:{exc}"
+        logger.exception("%s LLM call unexpected failure", label)
+        metadata.update(status="error", error_reason=reason, fallback_used=True)
+        return fallback_fn(f"{label}_error:{reason}"), metadata
+
