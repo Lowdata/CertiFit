@@ -1,0 +1,2 @@
+# Ignore sample data file containing access tokens
+sample-data/accesstoken.txt
