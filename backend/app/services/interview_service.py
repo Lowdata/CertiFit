@@ -319,13 +319,22 @@ def generate_interview_plan(
     project = _deterministic_project(profile)
 
     # Enrich with LLM (graceful fallback to deterministic)
-    enriched = _llm_enrich_questions(
-        technical=technical,
-        behavioral=behavioral,
-        verification=verification,
-        project=project,
-        job_title=job_title,
-    )
+    try:
+        enriched = _llm_enrich_questions(
+            technical=technical,
+            behavioral=behavioral,
+            verification=verification,
+            project=project,
+            job_title=job_title,
+        )
+    except Exception:
+        logger.exception("Interview LLM enrichment failed; using deterministic questions")
+        enriched = {
+            "technical_questions": technical,
+            "behavioral_questions": behavioral,
+            "verification_questions": verification,
+            "project_questions": project,
+        }
 
     return {
         "technical_questions": enriched.get("technical_questions") or technical,
