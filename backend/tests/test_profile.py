@@ -60,6 +60,47 @@ class TestBuildEvidenceMap:
 
 
 # ---------------------------------------------------------------------------
+# canonical skill aliases
+# ---------------------------------------------------------------------------
+
+class TestCanonicalSkillAliases:
+    def test_js_and_javascript_merge(self):
+        em = _build_evidence_map(["JS"], ["JavaScript"], ["JavaScript"])
+        assert "JavaScript" in em
+        assert "JS" not in em
+        assert sorted(em["JavaScript"]) == ["github", "linkedin", "resume"]
+
+    def test_node_and_nodejs_merge_but_distinct_from_javascript(self):
+        em = _build_evidence_map(["Node", "Node.js"], [], ["JavaScript"])
+        assert "Node.js" in em
+        assert "JavaScript" in em
+        assert em["Node.js"] == ["resume"]
+        assert em["JavaScript"] == ["github"]
+
+    def test_react_variants_merge(self):
+        em = _build_evidence_map(["React.js"], ["react"], [])
+        assert len(em) == 1
+        assert "React" in em
+        assert sorted(em["React"]) == ["linkedin", "resume"]
+
+    def test_postgres_alias_merges(self):
+        em = _build_evidence_map(["Postgres"], ["PostgreSQL"], [])
+        assert len(em) == 1
+        assert "PostgreSQL" in em
+        assert sorted(em["PostgreSQL"]) == ["linkedin", "resume"]
+
+    def test_unmapped_skill_unaffected(self):
+        em = _build_evidence_map(["Kubernetes"], [], [])
+        assert em["Kubernetes"] == ["resume"]
+
+    def test_ts_typescript_merge(self):
+        em = _build_evidence_map(["TS"], ["TypeScript"], ["TypeScript"])
+        assert len(em) == 1
+        assert "TypeScript" in em
+        assert sorted(em["TypeScript"]) == ["github", "linkedin", "resume"]
+
+
+# ---------------------------------------------------------------------------
 # skill_confidence
 # ---------------------------------------------------------------------------
 
@@ -196,3 +237,49 @@ class TestBuildNormalizedProfile:
         profile = build_normalized_profile(c)
         assert "Go" in profile["github_languages"]
         assert "Python" in profile["github_languages"]
+
+    def test_alias_merging_across_sources(self):
+        """
+        Resume says "JS", LinkedIn says "JavaScript", GitHub language is
+        "JavaScript" -> should merge into one canonical "JavaScript" entry
+        verified across all 3 sources, rather than fracturing into
+        separate "JS" and "JavaScript" skills.
+        """
+        c = _mock_candidate(
+            parsed={
+                "name": "Carol",
+                "current_role": "Frontend Dev",
+                "years_experience": 2,
+                "skills": ["JS", "Node"],
+                "tech_stack": {},
+                "work_history": [],
+                "education": [],
+                "certifications": [],
+                "project_urls": [],
+            },
+            linkedin={
+                "name": "Carol Lee",
+                "headline": "Frontend Engineer",
+                "skills": ["JavaScript"],
+                "positions": [],
+                "certifications": [],
+                "education": [],
+            },
+            github={
+                "language_totals": {"JavaScript": 8000},
+                "repositories": [],
+                "recent_events": [],
+            },
+        )
+        profile = build_normalized_profile(c)
+
+        # "JS" and "JavaScript" must merge into a single canonical skill
+        assert "JavaScript" in profile["evidence_map"]
+        assert "JS" not in profile["evidence_map"]
+        assert sorted(profile["evidence_map"]["JavaScript"]) == ["github", "linkedin", "resume"]
+        assert profile["skill_confidence"]["JavaScript"] == 100
+        assert "JavaScript" in profile["verified_skills"]
+
+        # "Node" stays distinct (canonicalized to Node.js), resume-only
+        assert "Node.js" in profile["evidence_map"]
+        assert profile["evidence_map"]["Node.js"] == ["resume"]

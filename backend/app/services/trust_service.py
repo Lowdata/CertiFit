@@ -200,7 +200,19 @@ def _skill_evidence_check(
     evidence_map: dict[str, list[str]]
 ) -> tuple[int, list[str], list[str], list[str]]:
     """
-    Score skills by evidence source count.
+    Score skills by the *quality* of their evidence, not just source count.
+
+    Evidence sources are weighted by how hard they are to fake:
+
+      - github   : 3 pts — backed by actual repos/commits/languages,
+                   the hardest signal to fabricate.
+      - linkedin : 2 pts — a public professional profile, harder to fake
+                   than a resume bullet but still self-reported.
+      - resume   : 1 pt  — self-reported, easiest to fabricate.
+
+    A skill's raw weight is the sum of the weights of the sources backing
+    it (max possible = 3 + 2 + 1 = 6 when all three sources agree).
+
     Returns (score, explanations, concerns, unsupported_claims)
     """
     explanations: list[str] = []
@@ -210,25 +222,36 @@ def _skill_evidence_check(
     if not evidence_map:
         return 0, explanations, concerns, unsupported
 
+    _SOURCE_WEIGHTS = {"github": 3, "linkedin": 2, "resume": 1}
+    _MAX_WEIGHT = sum(_SOURCE_WEIGHTS.values())  # 6
+
     pts = 0
     for skill, sources in evidence_map.items():
-        count = len(sources)
+        source_set = set(sources)
+        count = len(source_set)
+        weight = sum(_SOURCE_WEIGHTS.get(s, 0) for s in source_set)
+        pts += weight
+
         if count >= 3:
-            pts += 3
             explanations.append(f"{skill} verified across all 3 sources")
+        elif "github" in source_set and count >= 2:
+            explanations.append(
+                f"{skill} backed by GitHub evidence and corroborated by {' and '.join(sorted(source_set - {'github'}))}"
+            )
+        elif "github" in source_set:
+            explanations.append(f"{skill} backed by hard-to-fake GitHub evidence")
         elif count == 2:
-            pts += 2
-            explanations.append(f"{skill} verified in {' and '.join(sources)}")
-        elif "resume" in sources and count == 1:
-            # Resume-only claim
-            pts += 0
+            explanations.append(f"{skill} verified in {' and '.join(sorted(source_set))}")
+        elif source_set == {"resume"}:
+            # Resume-only claim — weakest possible evidence
             unsupported.append(skill)
             concerns.append(f"{skill} claim lacks corroborating evidence")
         else:
-            pts += 1  # non-resume source only — some signal
+            # non-resume single source (e.g. linkedin only) — some signal
+            pass
 
     # Normalise to 40 max
-    max_raw = len(evidence_map) * 3
+    max_raw = len(evidence_map) * _MAX_WEIGHT
     score = int((pts / max(max_raw, 1)) * 40)
     return min(score, 40), explanations, concerns, unsupported
 

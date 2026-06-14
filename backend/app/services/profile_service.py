@@ -36,13 +36,120 @@ _STOP_WORDS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Canonical skill aliases
+# ---------------------------------------------------------------------------
+#
+# Maps normalised alias keys (output of _normalise) -> canonical display name.
+# This prevents the same skill from fracturing into separate evidence_map
+# entries (e.g. "JS", "Node.js", "JavaScript" all collapsing correctly into
+# their distinct canonical forms while their own variant spellings merge).
+#
+# Keys here MUST be the _normalise()'d form of the alias.
+CANONICAL_SKILL_MAP: dict[str, str] = {
+    # JavaScript / TypeScript family
+    "js": "JavaScript",
+    "javascript": "JavaScript",
+    "ecmascript": "JavaScript",
+    "ts": "TypeScript",
+    "typescript": "TypeScript",
+    "node": "Node.js",
+    "nodejs": "Node.js",
+    "node.js": "Node.js",
+    "reactjs": "React",
+    "react.js": "React",
+    "react": "React",
+    "vuejs": "Vue.js",
+    "vue.js": "Vue.js",
+    "vue": "Vue.js",
+    "nextjs": "Next.js",
+    "next.js": "Next.js",
+    "angularjs": "Angular",
+    "angular": "Angular",
+
+    # Python ecosystem
+    "py": "Python",
+    "python": "Python",
+    "python3": "Python",
+
+    # Databases
+    "postgres": "PostgreSQL",
+    "postgresql": "PostgreSQL",
+    "psql": "PostgreSQL",
+    "mysql": "MySQL",
+    "mongo": "MongoDB",
+    "mongodb": "MongoDB",
+    "mssql": "SQL Server",
+    "sqlserver": "SQL Server",
+
+    # Cloud / infra
+    "aws": "AWS",
+    "amazonwebservices": "AWS",
+    "gcp": "GCP",
+    "googlecloudplatform": "GCP",
+    "googlecloud": "GCP",
+    "azure": "Azure",
+    "k8s": "Kubernetes",
+    "kubernetes": "Kubernetes",
+    "docker": "Docker",
+    "tf": "Terraform",
+    "terraform": "Terraform",
+    "cicd": "CI/CD",
+
+    # ML / AI
+    "ml": "Machine Learning",
+    "machinelearning": "Machine Learning",
+    "dl": "Deep Learning",
+    "deeplearning": "Deep Learning",
+    "nlp": "NLP",
+    "naturallanguageprocessing": "NLP",
+    "ai": "AI",
+    "artificialintelligence": "AI",
+    "llm": "LLM",
+    "llms": "LLM",
+
+    # Backend frameworks
+    "fastapi": "FastAPI",
+    "django": "Django",
+    "flask": "Flask",
+    "expressjs": "Express",
+    "express.js": "Express",
+    "express": "Express",
+    "springboot": "Spring Boot",
+    "spring": "Spring Boot",
+
+    # Misc languages
+    "golang": "Go",
+    "go": "Go",
+    "csharp": "C#",
+    "c#": "C#",
+    "cplusplus": "C++",
+    "c++": "C++",
+    "html5": "HTML",
+    "html": "HTML",
+    "css3": "CSS",
+    "css": "CSS",
+}
+
+
 def _normalise(skill: str) -> str:
     """Lower-case, strip punctuation — used only for deduplication keys."""
     return re.sub(r"[^a-z0-9#+.]", "", skill.lower())
 
 
 def _canonical(skill: str) -> str:
-    """Return the display-form skill string, stripped."""
+    """
+    Return the canonical display-form for a skill.
+
+    If the normalised form of `skill` matches a known alias, the mapped
+    canonical name is returned (e.g. "JS" / "Node" / "React.js" each map to
+    their respective canonical forms). Otherwise, the original (stripped)
+    string is returned unchanged.
+    """
+    key = _normalise(skill)
+    mapped = CANONICAL_SKILL_MAP.get(key)
+    if mapped:
+        return mapped
     return skill.strip()
 
 
@@ -118,22 +225,33 @@ def _build_evidence_map(
     """
     Returns {canonical_skill: [sources_list]} where sources are
     'resume', 'linkedin', 'github'.
-    Deduplication is done via normalised key; the first-seen form is kept.
+
+    Deduplication and merging is done via the *canonical* form's normalised
+    key (e.g. "JS", "Node", "node.js", "Node.js" all collapse to the single
+    canonical key for "Node.js"). This ensures aliases from different
+    sources are recognised as the same skill rather than fracturing the
+    evidence map.
     """
-    canonical_map: dict[str, str] = {}   # norm_key -> display_name
-    evidence: dict[str, set[str]] = {}   # norm_key -> set of sources
+    canonical_map: dict[str, str] = {}   # canon_norm_key -> display_name
+    evidence: dict[str, set[str]] = {}   # canon_norm_key -> set of sources
 
     for skill, source in (
         [(s, "resume") for s in resume_skills]
         + [(s, "linkedin") for s in linkedin_skills]
         + [(s, "github") for s in github_skills]
     ):
-        key = _normalise(skill)
-        if not key or key in _STOP_WORDS:
+        raw_key = _normalise(skill)
+        if not raw_key or raw_key in _STOP_WORDS:
             continue
-        if key not in canonical_map:
-            canonical_map[key] = _canonical(skill)
-        evidence.setdefault(key, set()).add(source)
+
+        canonical_name = _canonical(skill)
+        canon_key = _normalise(canonical_name)
+        if not canon_key or canon_key in _STOP_WORDS:
+            continue
+
+        if canon_key not in canonical_map:
+            canonical_map[canon_key] = canonical_name
+        evidence.setdefault(canon_key, set()).add(source)
 
     return {
         canonical_map[k]: sorted(v)

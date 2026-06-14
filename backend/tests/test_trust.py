@@ -127,6 +127,46 @@ class TestSkillEvidenceCheck:
         pts, expl, conc, unsupported = _skill_evidence_check({})
         assert pts == 0
 
+    def test_github_evidence_weighted_higher_than_resume_linkedin(self):
+        """
+        A skill backed by resume+github should score higher than a skill
+        backed by resume+linkedin, since GitHub evidence (actual code) is
+        harder to fake than a LinkedIn skill tag.
+        """
+        em_github = {"Python": ["resume", "github"]}
+        em_linkedin = {"Python": ["resume", "linkedin"]}
+
+        pts_github, _, _, _ = _skill_evidence_check(em_github)
+        pts_linkedin, _, _, _ = _skill_evidence_check(em_linkedin)
+
+        assert pts_github > pts_linkedin
+
+    def test_github_only_outweighs_resume_only(self):
+        """A GitHub-only skill is stronger evidence than a resume-only claim."""
+        em_github_only = {"Go": ["github"]}
+        em_resume_only = {"Go": ["resume"]}
+
+        pts_github, _, _, unsupported_github = _skill_evidence_check(em_github_only)
+        pts_resume, _, _, unsupported_resume = _skill_evidence_check(em_resume_only)
+
+        assert pts_github > pts_resume
+        assert "Go" not in unsupported_github
+        assert "Go" in unsupported_resume
+
+    def test_all_three_sources_scores_higher_than_two(self):
+        em_three = {"Python": ["resume", "github", "linkedin"]}
+        em_two = {"Python": ["resume", "github"]}
+
+        pts_three, _, _, _ = _skill_evidence_check(em_three)
+        pts_two, _, _, _ = _skill_evidence_check(em_two)
+
+        assert pts_three > pts_two
+
+    def test_github_backed_skill_explanation_mentions_github(self):
+        em = {"Python": ["resume", "github"]}
+        pts, expl, conc, unsupported = _skill_evidence_check(em)
+        assert any("GitHub" in e for e in expl)
+
 
 class TestGitHubActivityCheck:
     def test_no_github_data(self):
