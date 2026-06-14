@@ -20,6 +20,9 @@ from app.schemas.candidate import (
     GitHubProfileRequest,
     GitHubProfileResponse,
     LinkedInProfileResponse,
+    NormalizedProfileResponse,
+    TrustScoreResponse,
+    RebuildProfileResponse,
 )
 from app.services.candidate_service import (
     create_candidate,
@@ -27,8 +30,8 @@ from app.services.candidate_service import (
     get_candidate_by_user_id,
     delete_candidate,
     update_candidate_github_profile,
-    update_candidate_linkedin_profile
-
+    update_candidate_linkedin_profile,
+    rebuild_candidate_intelligence,
 )
 from app.services.github_service import (
     GitHubClientError,
@@ -141,6 +144,12 @@ async def upload_candidate(
             detail="Resume upload failed",
         )
 
+    # Rebuild intelligence after upload (best-effort, never blocks response)
+    try:
+        rebuild_candidate_intelligence(db=db, candidate=candidate)
+    except Exception:
+        logger.exception("Intelligence rebuild failed after resume upload")
+
     return {
         "id": candidate.id,
         "resume_file_name": candidate.resume_file_name
@@ -226,6 +235,12 @@ def upload_github_profile(
         github_profile=github_profile
     )
 
+    # Rebuild intelligence after new GitHub data
+    try:
+        rebuild_candidate_intelligence(db=db, candidate=candidate)
+    except Exception:
+        logger.exception("Intelligence rebuild failed after GitHub upload")
+
     return {
         "id": candidate.id,
         "github_profile": candidate.github_profile_json
@@ -269,9 +284,64 @@ async def upload_linkedin_profile(
         linkedin_profile=linkedin_profile
     )
 
+    # Rebuild intelligence after new LinkedIn data
+    try:
+        rebuild_candidate_intelligence(db=db, candidate=candidate)
+    except Exception:
+        logger.exception("Intelligence rebuild failed after LinkedIn upload")
+
     return {
         "id": candidate.id,
         "linkedin_profile": candidate.linkedin_profile_json
+    }
+
+
+@router.get("/me/profile", response_model=NormalizedProfileResponse)
+def get_my_normalized_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_candidate),
+):
+    """Return stored normalized profile (DB read — no rebuild)."""
+    candidate = get_candidate_by_user_id(db=db, user_id=current_user.id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+    return {
+        "id": candidate.id,
+        "normalized_profile": candidate.normalized_profile_json or {},
+    }
+
+
+@router.get("/me/trust", response_model=TrustScoreResponse)
+def get_my_trust_score(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_candidate),
+):
+    """Return stored trust score (DB read — no rebuild)."""
+    candidate = get_candidate_by_user_id(db=db, user_id=current_user.id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+    return {
+        "id": candidate.id,
+        "trust_score": candidate.trust_score_json or {},
+    }
+
+
+@router.post("/me/profile/rebuild", response_model=RebuildProfileResponse)
+def rebuild_my_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_candidate),
+):
+    """Force rebuild of normalized profile and trust score."""
+    candidate = get_candidate_by_user_id(db=db, user_id=current_user.id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    profile, trust = rebuild_candidate_intelligence(db=db, candidate=candidate)
+    return {
+        "id": candidate.id,
+        "message": "Profile and trust score rebuilt successfully",
+        "normalized_profile": profile,
+        "trust_score": trust,
     }
 
 @router.get("/", response_model=CandidateListResponse)

@@ -221,3 +221,41 @@ def update_candidate_linkedin_profile(
     db.refresh(candidate)
 
     return candidate
+
+
+def rebuild_candidate_intelligence(db, candidate) -> tuple[dict, dict]:
+    """
+    Rebuild normalized_profile_json and trust_score_json for a candidate.
+    Persists both atomically. Returns (profile, trust) dicts.
+
+    Called after every resume / LinkedIn / GitHub upload so that GET endpoints
+    are always cheap DB reads.
+    """
+    from app.services.profile_service import build_normalized_profile
+    from app.services.trust_service import calculate_trust_score
+
+    profile = {}
+    trust = {}
+
+    try:
+        profile = build_normalized_profile(candidate)
+        candidate.normalized_profile_json = profile
+    except Exception:
+        logger.exception("Normalized profile build failed for candidate %s", candidate.id)
+
+    try:
+        # Trust service reads normalized_profile_json — set it first
+        trust = calculate_trust_score(candidate)
+        candidate.trust_score_json = trust
+    except Exception:
+        logger.exception("Trust score computation failed for candidate %s", candidate.id)
+
+    try:
+        db.commit()
+        db.refresh(candidate)
+    except Exception:
+        db.rollback()
+        logger.exception("DB write failed while saving intelligence for candidate %s", candidate.id)
+
+    return profile, trust
+

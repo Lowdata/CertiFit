@@ -45,3 +45,21 @@ class GitHubProfileResponse(BaseModel):
 class LinkedInProfileResponse(BaseModel):
     id: int
     linkedin_profile: dict[str, Any]
+
+
+class NormalizedProfileResponse(BaseModel):
+    id: int
+    normalized_profile: dict[str, Any]
+
+
+class TrustScoreResponse(BaseModel):
+    id: int
+    trust_score: dict[str, Any]
+
+
+class RebuildProfileResponse(BaseModel):
+    id: int
+    message: str
+    normalized_profile: dict[str, Any]
+    trust_score: dict[str, Any]
+

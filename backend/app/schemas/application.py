@@ -28,6 +28,10 @@ class ApplicationResponse(BaseModel):
     match_summary: str
     strengths: list[Any]
     gaps: list[Any]
+    fit_score: float = 0.0
+    trust_score: float = 0.0
+    composite_score: float = 0.0
+    score_explanations: dict[str, Any] = {}
     applied_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -43,3 +47,22 @@ class ApplicationListResponse(BaseModel):
 class JobApplicationListResponse(BaseModel):
     job_id: int
     data: list[CandidateApplicationResponse]
+
+
+class CandidateReportResponse(BaseModel):
+    """Demo endpoint — everything in one call."""
+    application_id: int
+    candidate_id: int
+    job_id: int
+    status: ApplicationStatus
+    fit_score: float
+    trust_score: float
+    composite_score: float
+    score_explanations: dict[str, Any]
+    strengths: list[Any]
+    concerns: list[Any]
+    unsupported_claims: list[Any]
+    evidence_map: dict[str, Any]
+    skill_confidence: dict[str, Any]
+    interview_plan: dict[str, Any]
+

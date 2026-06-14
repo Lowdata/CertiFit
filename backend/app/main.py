@@ -11,6 +11,9 @@ from app.api.auth import (
 from app.api.applications import (
     router as applications_router
 )
+from app.api.interview import (
+    router as interview_router
+)
 
 app = FastAPI(title="CertiFit")
 
@@ -42,4 +45,10 @@ app.include_router(
     applications_router,
     prefix="/applications",
     tags=["Applications"]
+)
+
+app.include_router(
+    interview_router,
+    prefix="/applications",
+    tags=["Interview"]
 )

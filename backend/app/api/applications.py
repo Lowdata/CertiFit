@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.application import ApplicationResponse
 from app.schemas.application import ApplicationListResponse
 from app.schemas.application import ApplicationStatusUpdateRequest
+from app.schemas.application import CandidateReportResponse
 from app.services.application_service import (
     ApplicationNotFoundError,
     InvalidApplicationStatusTransitionError,
@@ -104,3 +105,63 @@ def change_application_status(
         )
 
     return _application_summary(application)
+
+
+@router.get("/{application_id}/candidate-report", response_model=CandidateReportResponse)
+def get_candidate_report(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_recruiter),
+):
+    """
+    Demo endpoint — returns the full candidate intelligence report in one call.
+    Recruiter must own the job linked to this application.
+    """
+    from app.models.application import Application
+    from app.models.candidate import Candidate
+    from app.models.job import Job
+    from app.services.interview_service import generate_interview_plan
+
+    row = (
+        db.query(Application, Candidate, Job)
+        .join(Job, Application.job_id == Job.id)
+        .join(Candidate, Application.candidate_id == Candidate.id)
+        .filter(
+            Application.id == application_id,
+            Job.recruiter_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Application not found or access denied",
+        )
+
+    application, candidate, job = row
+    profile = candidate.normalized_profile_json or {}
+    trust = candidate.trust_score_json or {}
+
+    interview_plan = generate_interview_plan(
+        job=job,
+        candidate=candidate,
+        application=application,
+    )
+
+    return {
+        "application_id": application.id,
+        "candidate_id": candidate.id,
+        "job_id": job.id,
+        "status": application.status,
+        "fit_score": application.fit_score,
+        "trust_score": application.trust_score,
+        "composite_score": application.composite_score,
+        "score_explanations": application.score_explanations or {},
+        "strengths": application.strengths_json or [],
+        "concerns": trust.get("concerns") or [],
+        "unsupported_claims": trust.get("unsupported_claims") or [],
+        "evidence_map": profile.get("evidence_map") or {},
+        "skill_confidence": profile.get("skill_confidence") or {},
+        "interview_plan": interview_plan,
+    }

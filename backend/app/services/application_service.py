@@ -197,6 +197,52 @@ def calculate_match(
     }
 
 
+def _composite_score(fit_score: float, trust_score: float) -> float:
+    """
+    composite = fit * (0.6 + 0.4 * (trust / 100))
+    Range: 0-100. Deterministic, no rounding quirks.
+    """
+    normalised_trust = max(0.0, min(trust_score, 100.0)) / 100.0
+    raw = fit_score * (0.6 + 0.4 * normalised_trust)
+    return round(min(raw, 100.0), 2)
+
+
+def _build_score_explanations(
+    fit_score: float,
+    trust_score: float,
+    composite_score: float,
+    strengths: list,
+    trust_data: dict,
+) -> dict:
+    """Build the human-readable score_explanations dict."""
+    why: list[str] = []
+
+    # Positive signals
+    for strength in (trust_data.get("strengths") or [])[:3]:
+        why.append(strength)
+
+    # Concerns
+    for concern in (trust_data.get("concerns") or [])[:3]:
+        why.append(concern)
+
+    # Unsupported claims
+    unsupported = trust_data.get("unsupported_claims") or []
+    if unsupported:
+        skills_str = ", ".join(unsupported[:3])
+        why.append(f"Unverified claims: {skills_str} — resume only, no corroboration")
+
+    # Skill strengths from match
+    if strengths:
+        why.append(f"Matched skills: {', '.join(str(s) for s in strengths[:4])}")
+
+    return {
+        "fit": round(fit_score, 2),
+        "trust": round(trust_score, 2),
+        "composite": composite_score,
+        "why": why,
+    }
+
+
 def create_application(
     db,
     job_id: int,
@@ -228,15 +274,39 @@ def create_application(
         job=job,
         candidate=candidate
     )
+    fit = match["score"]
+
+    # Trust score — compute deterministically; LLM is best-effort
+    try:
+        from app.services.trust_service import calculate_trust_score
+        trust_data = calculate_trust_score(candidate)
+        trust = float(trust_data.get("trust_score") or 0)
+    except Exception:
+        logger.exception("Trust score computation failed; defaulting to 0")
+        trust_data = {}
+        trust = 0.0
+
+    composite = _composite_score(fit, trust)
+    score_explanations = _build_score_explanations(
+        fit_score=fit,
+        trust_score=trust,
+        composite_score=composite,
+        strengths=match["strengths"],
+        trust_data=trust_data,
+    )
 
     application = Application(
         job_id=job.id,
         candidate_id=candidate.id,
         status="applied",
-        match_score=match["score"],
+        match_score=fit,          # backward compat
         match_summary=match["summary"],
         strengths_json=match["strengths"],
-        gaps_json=match["gaps"]
+        gaps_json=match["gaps"],
+        fit_score=fit,
+        trust_score=trust,
+        composite_score=composite,
+        score_explanations=score_explanations,
     )
 
     try:
