@@ -83,6 +83,30 @@ class Application(Base):
         default=list
     )
 
+    fit_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0
+    )
+
+    trust_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0
+    )
+
+    composite_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0
+    )
+
+    score_explanations: Mapped[dict] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=dict
+    )
+
     applied_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()
