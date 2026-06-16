@@ -11,9 +11,10 @@ Output:
 {
     "technical_questions": [],
     "behavioral_questions": [],
+    "leadership_questions": [],
     "verification_questions": [],
     "project_questions": [],
-    "optimisation_based_questions": []
+    "risk_questions": []
 }
 
 Gemini is used to generate natural question text.
@@ -123,15 +124,27 @@ def _deterministic_behavioral(job_data: dict) -> list[str]:
     return _BEHAVIORAL_BY_SENIORITY["default"]
 
 
-def _deterministic_verification(trust_data: dict) -> list[str]:
-    """Generate verification questions from trust concerns and unsupported claims."""
+def _deterministic_verification(profile: dict) -> list[str]:
+    """Generate general verification questions."""
+    return [
+        "Can you verify your most recent title and dates of employment?",
+        "Could you briefly explain your role in your most recent project?"
+    ]
+
+def _deterministic_leadership(job_data: dict) -> list[str]:
+    seniority = (job_data.get("seniority") or "").lower()
+    if seniority in {"lead", "staff", "principal"}:
+        return _BEHAVIORAL_BY_SENIORITY["lead"]
+    return []
+
+def _deterministic_risk(trust_data: dict) -> list[str]:
+    """Generate risk questions from trust concerns and unsupported claims."""
     questions: list[str] = []
 
-    for concern in (trust_data.get("concerns") or [])[:4]:
-        # Convert concern text into a question
-        questions.append(f"I noticed: {concern}. Can you clarify this?")
+    for concern in (trust_data.get("concerns") or [])[:3]:
+        questions.append(f"I noticed a potential concern: {concern}. Can you provide context on this?")
 
-    for claim in (trust_data.get("unsupported_claims") or [])[:4]:
+    for claim in (trust_data.get("unsupported_claims") or [])[:3]:
         key = claim.lower()
         matched_template = None
         for template_key, template_qs in _TECH_TEMPLATES.items():
@@ -143,8 +156,8 @@ def _deterministic_verification(trust_data: dict) -> list[str]:
             questions.append(matched_template)
         else:
             questions.append(
-                f"Your profile mentions {claim}. Can you walk me through a specific "
-                f"project where you applied this in a meaningful way?"
+                f"Your profile mentions {claim}, but we could not find implementation evidence. "
+                f"Can you walk me through a specific project where you applied this in a meaningful way?"
             )
 
     return questions[:6]
@@ -190,9 +203,10 @@ def _fallback_interview_plan(reason: str) -> dict[str, Any]:
     return {
         "technical_questions": [],
         "behavioral_questions": [],
+        "leadership_questions": [],
         "verification_questions": [],
         "project_questions": [],
-        "optimisation_based_questions": [],
+        "risk_questions": [],
         "_reason": reason,
     }
 
@@ -200,8 +214,10 @@ def _fallback_interview_plan(reason: str) -> dict[str, Any]:
 def _llm_enrich_questions(
     technical: list[str],
     behavioral: list[str],
+    leadership: list[str],
     verification: list[str],
     project: list[str],
+    risk: list[str],
     job_title: str,
     job_description: dict,
     candidate_profile: dict,
@@ -225,9 +241,10 @@ def _llm_enrich_questions(
         return {
             "technical_questions": technical,
             "behavioral_questions": behavioral,
+            "leadership_questions": leadership,
             "verification_questions": verification,
             "project_questions": project,
-            "optimisation_based_questions": [],
+            "risk_questions": risk,
         }
 
     prompt = f"""You are an Expert Technical Interviewer hiring for the role of {job_title}.
@@ -248,19 +265,21 @@ Trust Concerns (Unverified Claims):
 === TASK ===
 Based heavily on the Candidate Profile's actual projects, skills, and experience, generate a 30-minute interview plan.
 
-1. technical_questions: Generate 3 deep technical questions. If the candidate has high experience or high scores, include tough architectural or optimization questions based specifically on the tech stack in their profile (e.g., "In your X project, how did you handle database indexing for...").
+1. technical_questions: Generate 3 deep technical questions based specifically on the tech stack in their profile.
 2. behavioral_questions: Generate 2 behavioral questions tailored to their seniority level.
-3. verification_questions: Generate 2 questions that directly probe their "Trust Concerns" or unverified claims. Ask for specific proof of their involvement.
-4. project_questions: Generate 2 questions asking them to walk through specific projects listed in their profile data.
-5. optimisation_based_questions: Generate 2 questions that probe any quantified impact claims in the candidate's profile (e.g. "improved performance by 34%", "handled 50% more traffic"). Such numbers are often added to pass ATS screening and can be exaggerated, so ask the candidate to explain the baseline, methodology, and how the improvement was measured — only someone who actually did the work can answer in detail.
+3. leadership_questions: Generate 2 questions about their leadership and project ownership experience.
+4. verification_questions: Generate 2 questions that verify basic employment history and project involvement.
+5. project_questions: Generate 2 questions asking them to walk through specific projects listed in their profile data.
+6. risk_questions: Generate 2 questions that directly probe their "Trust Concerns" or unverified claims. Ask for specific proof of their involvement or clarify any inconsistencies.
 
 Return ONLY valid JSON in this exact shape:
 {{
   "technical_questions": ["<question 1>", "<question 2>", "<question 3>"],
   "behavioral_questions": ["<question 1>", "<question 2>"],
+  "leadership_questions": ["<question 1>", "<question 2>"],
   "verification_questions": ["<question 1>", "<question 2>"],
   "project_questions": ["<question 1>", "<question 2>"],
-  "optimisation_based_questions": ["<question 1>", "<question 2>"]
+  "risk_questions": ["<question 1>", "<question 2>"]
 }}
 
 Rules:
@@ -271,18 +290,20 @@ Rules:
     schema_keys = [
         "technical_questions",
         "behavioral_questions",
+        "leadership_questions",
         "verification_questions",
         "project_questions",
-        "optimisation_based_questions",
+        "risk_questions",
     ]
 
     def _fallback(reason: str) -> dict:
         return {
             "technical_questions": technical,
             "behavioral_questions": behavioral,
+            "leadership_questions": leadership,
             "verification_questions": verification,
             "project_questions": project,
-            "optimisation_based_questions": [],
+            "risk_questions": risk,
         }
 
     result, meta = safe_gemini_call(
@@ -298,9 +319,10 @@ Rules:
     for key, fallback_val in [
         ("technical_questions", technical),
         ("behavioral_questions", behavioral),
+        ("leadership_questions", leadership),
         ("verification_questions", verification),
         ("project_questions", project),
-        ("optimisation_based_questions", []),
+        ("risk_questions", risk),
     ]:
         val = result.get(key)
         out[key] = val if isinstance(val, list) and val else fallback_val
@@ -339,16 +361,20 @@ def generate_interview_plan(
     # Generate deterministic base questions
     technical = _deterministic_technical(required_skills, profile)
     behavioral = _deterministic_behavioral(job_data)
-    verification = _deterministic_verification(trust_data)
+    leadership = _deterministic_leadership(job_data)
+    verification = _deterministic_verification(profile)
     project = _deterministic_project(profile)
+    risk = _deterministic_risk(trust_data)
 
     # Enrich with LLM (graceful fallback to deterministic)
     try:
         enriched = _llm_enrich_questions(
             technical=technical,
             behavioral=behavioral,
+            leadership=leadership,
             verification=verification,
             project=project,
+            risk=risk,
             job_title=job_title,
             job_description=job_description,
             candidate_profile=candidate_profile,
@@ -361,15 +387,17 @@ def generate_interview_plan(
         enriched = {
             "technical_questions": technical,
             "behavioral_questions": behavioral,
+            "leadership_questions": leadership,
             "verification_questions": verification,
             "project_questions": project,
-            "optimisation_based_questions": [],
+            "risk_questions": risk,
         }
 
     return {
         "technical_questions": enriched.get("technical_questions") or technical,
         "behavioral_questions": enriched.get("behavioral_questions") or behavioral,
+        "leadership_questions": enriched.get("leadership_questions") or leadership,
         "verification_questions": enriched.get("verification_questions") or verification,
         "project_questions": enriched.get("project_questions") or project,
-        "optimisation_based_questions": enriched.get("optimisation_based_questions") or [],
+        "risk_questions": enriched.get("risk_questions") or risk,
     }

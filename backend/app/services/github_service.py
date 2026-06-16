@@ -172,6 +172,16 @@ def analyze_github_profile(identifier: str) -> dict:
             repo=selected_repo,
             languages=languages,
         )
+        if full_name:
+            try:
+                readme_data = _request_json(f"/repos/{full_name}/readme")
+                if "content" in readme_data:
+                    import base64
+                    selected_repo_summary["readme"] = base64.b64decode(readme_data["content"]).decode("utf-8", errors="ignore")
+            except GitHubNotFoundError:
+                pass
+            except Exception:
+                pass
 
     return {
         "source": "github",

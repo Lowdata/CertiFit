@@ -52,7 +52,7 @@ Out of scope for current MVP unless explicitly requested:
 | LinkedIn PDF processing | ✅ Implemented | `POST /candidates/linkedin` — parses PDF, stores in `linkedin_profile_json`. |
 | Migrations | ✅ Implemented | Alembic chain 0001–0007. All migrations have column-existence guards. |
 | Normalized profile | ✅ Implemented | `profile_service.py` — builds evidence_map, skill_confidence, verified_skills on every upload. |
-| Trust score | ✅ Implemented | `trust_service.py` — deterministic rules (0-80 pts) + LLM review (0-20 pts, failure = no bonus). |
+| Trust score | ✅ Implemented | `trust_service.py` — deterministic rules (0-95 pts) + LLM review (0-5 pts). Weights: Verification=40, Activity=15, Career=15, Ownership=15, Learning=10, LLM=5. |
 | Composite ranking | ✅ Implemented | `fit * (0.6 + 0.4 * trust/100)` stored in `applications.composite_score`. |
 | Interview copilot | ✅ Implemented | `interview_service.py` + `POST /applications/{id}/interview-plan`. Trust concerns → verification questions. |
 | Candidate report | ✅ Implemented | `GET /applications/{id}/candidate-report` — demo endpoint returns everything in one call. |
@@ -258,8 +258,6 @@ Current tables:
 
 Pending schema areas:
 
-- Normalized profile storage.
-- Trust score storage.
 - Interview copilot storage, if needed.
 
 Do not add recruiter profiles, teams, companies, notifications, interview tables, or vector search unless the MVP scope is explicitly changed.
@@ -595,16 +593,17 @@ flowchart TD
     A["Resume evidence"] --> D["Trust score engine"]
     B["LinkedIn evidence"] --> D
     C["GitHub evidence"] --> D
-    D --> E["Consistency checks"]
-    D --> F["Evidence strength checks"]
-    D --> G["Recency/activity checks"]
-    E --> H["Trust score"]
-    F --> H
-    G --> H
+    D --> E["Verification (40%)"]
+    D --> F["Activity (15%)"]
+    D --> G["Career (15%)"]
+    D --> H["Ownership (15%)"]
+    D --> I["Learning (10%)"]
+    D --> J["LLM Review (5%)"]
+    E & F & G & H & I & J --> K["Trust score"]
     H --> I["Store score plus explanation"]
 ```
 
-MVP trust score should be explainable and deterministic. Avoid black-box scoring without visible evidence.
+MVP trust score is explainable and deterministic. Trust Score is INTERNAL. Do NOT expose `trust_score` numeric values to candidates. Candidates only receive sanitized data (completeness status, missing evidence).
 
 ## Interview Copilot Flow
 

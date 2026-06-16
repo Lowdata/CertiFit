@@ -256,18 +256,154 @@ def _skill_evidence_check(
     return min(score, 40), explanations, concerns, unsupported
 
 
-def _github_activity_check(
-    github: dict
-) -> tuple[int, list[str], list[str]]:
+_TECH_EVIDENCE_PATTERNS = {
+    "aws": r"(?i)\b(aws|s3|ec2|lambda|cloudformation|cdk|terraform|ecs|eks)\b",
+    "kubernetes": r"(?i)\b(kubernetes|k8s|helm|kubectl|pod|deployment\.yaml)\b",
+    "docker": r"(?i)\b(docker|dockerfile|docker-compose)\b",
+    "react": r"(?i)\b(react|jsx|tsx|next\.js|create-react-app)\b",
+    "terraform": r"(?i)\b(terraform|tf|hcl|main\.tf)\b",
+    "ai": r"(?i)\b(ai|llm|langchain|openai|rag|vector|chroma|pinecone)\b"
+}
+
+def _deep_evidence_check(github: dict, evidence_map: dict[str, list[str]]) -> tuple[list[str], list[str], list[str]]:
     explanations: list[str] = []
     concerns: list[str] = []
+    deep_unsupported: list[str] = []
+
+    if not github:
+        return explanations, concerns, deep_unsupported
+
+    # gather all github text
+    github_text = []
+    for r in github.get("repositories") or []:
+        github_text.append(str(r.get("description") or ""))
+        github_text.extend(r.get("topics") or [])
+        github_text.extend((r.get("languages") or {}).keys())
+    
+    if github.get("selected_repository"):
+        sr = github["selected_repository"]
+        github_text.append(str(sr.get("description") or ""))
+        github_text.extend(sr.get("topics") or [])
+        github_text.extend((sr.get("languages") or {}).keys())
+        github_text.append(str(sr.get("readme") or ""))
+
+    full_text = " ".join(github_text)
+
+    for skill, sources in evidence_map.items():
+        key = skill.lower()
+        # Find if this skill is one of our deep check skills
+        for tech, pattern in _TECH_EVIDENCE_PATTERNS.items():
+            if tech in key or key in tech:
+                # Skill claimed, let's verify actual usage
+                if re.search(pattern, full_text):
+                    explanations.append(f"{skill} usage demonstrated in GitHub repositories")
+                else:
+                    concerns.append(f"{skill} claimed but no implementation evidence found in GitHub")
+                    deep_unsupported.append(skill)
+                break
+
+    return explanations, concerns, deep_unsupported
+
+def _generate_career_signals(parsed: dict, linkedin: dict) -> tuple[int, list[str], list[str]]:
     pts = 0
+    explanations: list[str] = []
+    concerns: list[str] = []
+    
+    levels = ["intern", "junior", "associate", "engineer", "developer", "senior", "lead", "staff", "principal", "manager", "director", "vp", "cto", "founder"]
+    level_weights = {l: i for i, l in enumerate(levels)}
+    
+    history = []
+    for entry in (parsed.get("work_history") or []):
+        history.append(str(entry.get("role") or entry.get("title") or ""))
+    for pos in (linkedin.get("positions") or []):
+        history.append(str(pos.get("title") or ""))
+
+    found_levels = []
+    for h in history:
+        for lvl in levels:
+            if re.search(r"\b" + lvl + r"\b", h.lower()):
+                found_levels.append(level_weights[lvl])
+                break
+
+    if found_levels:
+        distinct_levels = len(set(found_levels))
+        if distinct_levels > 1:
+            pts += 10
+            explanations.append(f"Career progression indicated across {distinct_levels} distinct seniority levels")
+        elif len(found_levels) >= 2:
+            pts += 5
+            explanations.append("Steady career trajectory")
+            
+        max_level = max(found_levels)
+        if max_level >= level_weights["senior"]:
+            pts += 5
+            explanations.append("Senior or leadership roles present in timeline")
+    
+    return min(pts, 15), explanations, concerns
+
+def _generate_learning_signals(parsed: dict, linkedin: dict, evidence_map: dict[str, list[str]]) -> tuple[int, list[str], list[str]]:
+    pts = 0
+    explanations: list[str] = []
+    concerns: list[str] = []
+    
+    resume_certs = parsed.get("certifications") or []
+    linkedin_certs = linkedin.get("certifications") or []
+    all_certs = resume_certs + linkedin_certs
+
+    if all_certs:
+        pts += 5
+        explanations.append(f"Evidence of continuous learning ({len(all_certs)} certifications)")
+    
+    skill_keys = {s.lower() for s in evidence_map}
+    aligned = False
+    for cert in all_certs:
+        cert_lower = str(cert).lower()
+        if any(sk in cert_lower for sk in skill_keys):
+            aligned = True
+            break
+            
+    if aligned:
+        pts += 5
+        explanations.append("Certifications align with claimed skills")
+        
+    return min(pts, 10), explanations, concerns
+
+def _generate_ownership_signals(github: dict) -> tuple[int, list[str], list[str]]:
+    pts = 0
+    explanations: list[str] = []
+    concerns: list[str] = []
+
+    if not github:
+        return pts, explanations, concerns
+
+    repos = github.get("repositories") or []
+    owned = [r for r in repos if not r.get("fork")]
+    
+    if len(owned) >= 3:
+        pts += 8
+        explanations.append(f"Primary ownership of {len(owned)} non-fork repositories")
+    elif len(owned) > 0:
+        pts += 4
+        explanations.append(f"Primary ownership of {len(owned)} repositories")
+        
+    stars = sum((r.get("stargazers_count") or 0) for r in owned)
+    if stars >= 10:
+        pts += 7
+        explanations.append(f"Maintained projects have community traction ({stars} stars)")
+    elif stars > 0:
+        pts += 3
+        
+    return min(pts, 15), explanations, concerns
+
+def _generate_activity_signals(github: dict) -> tuple[int, list[str], list[str]]:
+    pts = 0
+    explanations: list[str] = []
+    concerns: list[str] = []
 
     if not github:
         concerns.append("No GitHub data available")
-        return 0, explanations, concerns
+        return pts, explanations, concerns
 
-    # Recent events check (< 90 days)
     recent_events = github.get("recent_events") or []
     now = datetime.now(UTC)
     recent_count = 0
@@ -280,66 +416,19 @@ def _github_activity_check(
         except Exception:
             pass
 
-    if recent_count >= 3:
-        pts += 5
-        explanations.append(f"Active GitHub: {recent_count} events in last 90 days")
+    if recent_count >= 5:
+        pts += 10
+        explanations.append(f"Strong recent activity: {recent_count} events in last 90 days")
     elif recent_count > 0:
-        pts += 2
-        explanations.append(f"Some GitHub activity: {recent_count} recent events")
-    else:
-        concerns.append("No recent GitHub activity in last 90 days")
-
-    # Owned repos
-    repos = github.get("repositories") or []
-    owned = [r for r in repos if not r.get("fork")]
-    if len(owned) >= 3:
         pts += 5
-        explanations.append(f"{len(owned)} owned (non-fork) repositories")
-    elif len(owned) > 0:
-        pts += 2
-        explanations.append(f"{len(owned)} owned repositories")
-    else:
-        concerns.append("No owned repositories found")
+        explanations.append(f"Recent GitHub activity detected")
 
-    # Languages present
     languages = github.get("language_totals") or {}
-    if len(languages) >= 2:
+    if len(languages) >= 3:
         pts += 5
-        explanations.append(
-            f"GitHub shows proficiency in: {', '.join(list(languages.keys())[:4])}"
-        )
-    elif len(languages) == 1:
-        pts += 2
-
+        explanations.append(f"Technology diversity shown across {len(languages)} languages")
+        
     return min(pts, 15), explanations, concerns
-
-
-def _certification_check(
-    parsed: dict,
-    linkedin: dict,
-    evidence_map: dict[str, list[str]],
-) -> tuple[int, list[str], list[str]]:
-    explanations: list[str] = []
-    concerns: list[str] = []
-    pts = 0
-
-    resume_certs = parsed.get("certifications") or []
-    linkedin_certs = linkedin.get("certifications") or []
-    all_certs = resume_certs + linkedin_certs
-
-    skill_keys = {s.lower() for s in evidence_map}
-
-    for cert in all_certs:
-        cert_lower = str(cert).lower()
-        matched = any(sk in cert_lower for sk in skill_keys)
-        if matched:
-            pts += 2
-            explanations.append(f"Certification validates claimed skill: {cert}")
-
-    if pts == 0 and all_certs:
-        concerns.append("Certifications present but don't align with claimed skills")
-
-    return min(pts, 10), explanations, concerns
 
 
 # ---------------------------------------------------------------------------
@@ -471,7 +560,7 @@ consistency_score:
 
     raw_score = int(result.get("consistency_score") or 0)
     raw_score = max(0, min(100, raw_score))
-    pts = int((raw_score / 100) * 20)
+    pts = int((raw_score / 100) * 5)
 
     return pts, {
         "status": meta["status"],
@@ -482,6 +571,62 @@ consistency_score:
         "fallback_used": False,
     }
 
+
+def _generate_behavioral_insights(candidate: "Candidate") -> dict[str, Any]:
+    try:
+        from google import genai
+        from app.core.config import GEMINI_API_KEY
+        from app.services.llm_validation import safe_gemini_call
+
+        client = genai.Client(api_key=GEMINI_API_KEY)
+    except Exception as exc:
+        logger.warning("Gemini client init failed for behavioral insights: %s", exc)
+        return {
+            "strengths": [],
+            "potential_risks": [],
+            "communication_indicators": [],
+            "leadership_indicators": [],
+            "learning_indicators": [],
+            "fallback_used": True
+        }
+
+    parsed = candidate.parsed_candidate_json or {}
+    
+    prompt = f"""You are an expert technical recruiter analyzing a candidate.
+Extract behavioral insights based on their work history, projects, and certifications.
+Candidate Summary:
+{json.dumps(parsed, indent=2)[:4000]}
+
+Do not generate personality labels (like DISC or MBTI). Keep insights grounded in observable facts.
+Return exactly this JSON:
+{{
+  "strengths": ["<strength>"],
+  "potential_risks": ["<risk>"],
+  "communication_indicators": ["<indicator>"],
+  "leadership_indicators": ["<indicator>"],
+  "learning_indicators": ["<indicator>"]
+}}
+"""
+    
+    def _fallback(reason: str) -> dict[str, Any]:
+        return {
+            "strengths": [],
+            "potential_risks": [],
+            "communication_indicators": [],
+            "leadership_indicators": [],
+            "learning_indicators": [],
+            "fallback_used": True
+        }
+
+    result, meta = safe_gemini_call(
+        client=client,
+        prompt=prompt,
+        schema_keys=["strengths", "potential_risks", "communication_indicators", "leadership_indicators", "learning_indicators"],
+        fallback_fn=_fallback,
+        label="behavioral_insights"
+    )
+
+    return result
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -521,60 +666,85 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
     all_concerns: list[str] = []
     all_explanations: list[str] = []
     all_unsupported: list[str] = []
-    det_score = 0
 
     # 1. Date consistency (±10)
-    pts, expl, conc = _date_consistency_check(parsed, linkedin)
-    det_score += pts
+    pts_date, expl, conc = _date_consistency_check(parsed, linkedin)
     all_explanations.extend(expl)
     all_concerns.extend(conc)
 
     # 2. Title consistency (±10)
-    pts, expl, conc = _title_consistency_check(parsed, linkedin)
-    det_score += pts
+    pts_title, expl, conc = _title_consistency_check(parsed, linkedin)
     all_explanations.extend(expl)
     all_concerns.extend(conc)
 
-    # 3. Skill evidence (0-40)
-    pts, expl, conc, unsupported = _skill_evidence_check(evidence_map)
-    det_score += pts
+    # 3. Deep evidence check
+    expl, conc, deep_unsupported = _deep_evidence_check(github, evidence_map)
+    all_explanations.extend(expl)
+    all_concerns.extend(conc)
+    for skill in deep_unsupported:
+        if skill in evidence_map and "github" in evidence_map[skill]:
+            evidence_map[skill].remove("github")
+
+    # 4. Skill evidence (0-40)
+    pts_skill, expl, conc, unsupported = _skill_evidence_check(evidence_map)
     all_explanations.extend(expl)
     all_concerns.extend(conc)
     all_unsupported.extend(unsupported)
 
-    # 4. GitHub activity (0-15)
-    pts, expl, conc = _github_activity_check(github)
-    det_score += pts
+    verification_score = max(0, min(pts_skill + pts_date + pts_title, 40))
+
+    # 5. Activity signals (0-15)
+    activity_pts, expl, conc = _generate_activity_signals(github)
     all_explanations.extend(expl)
     all_concerns.extend(conc)
 
-    # 5. Certification check (0-10)
-    pts, expl, conc = _certification_check(parsed, linkedin, evidence_map)
-    det_score += pts
+    # 6. Career signals (0-15)
+    career_pts, expl, conc = _generate_career_signals(parsed, linkedin)
     all_explanations.extend(expl)
     all_concerns.extend(conc)
 
-    # Collect deterministic strengths
+    # 7. Learning signals (0-10)
+    learning_pts, expl, conc = _generate_learning_signals(parsed, linkedin, evidence_map)
+    all_explanations.extend(expl)
+    all_concerns.extend(conc)
+
+    # 8. Ownership signals (0-15)
+    ownership_pts, expl, conc = _generate_ownership_signals(github)
+    all_explanations.extend(expl)
+    all_concerns.extend(conc)
+
     if len(evidence_map) > 5:
         all_strengths.append(
             f"Strong evidence portfolio: {len(evidence_map)} skills with source attribution"
         )
 
-    det_score = max(0, min(det_score, 80))
+    det_score = verification_score + activity_pts + career_pts + learning_pts + ownership_pts
+    det_score = max(0, min(det_score, 95))
 
-    # 6. LLM review (0-20 pts, only if Gemini works)
+    # 9. LLM review (0-5 pts, only if Gemini works)
     llm_pts, llm_review = _llm_consistency_review(candidate)
     all_concerns.extend(llm_review.get("llm_concerns") or [])
     all_strengths.extend(llm_review.get("llm_strengths") or [])
 
     final_score = min(det_score + llm_pts, 100)
 
+    behavioral_insights = _generate_behavioral_insights(candidate)
+
     return {
         "trust_score": final_score,
+        "score_breakdown": {
+            "verification_score": verification_score,
+            "activity_score": activity_pts,
+            "career_progression_score": career_pts,
+            "learning_score": learning_pts,
+            "ownership_score": ownership_pts,
+            "llm_score": llm_pts
+        },
         "strengths": all_strengths,
         "concerns": all_concerns,
         "unsupported_claims": all_unsupported,
         "evidence": evidence_map,
         "explanations": all_explanations,
         "llm_review": llm_review,
+        "behavioral_insights": behavioral_insights,
     }

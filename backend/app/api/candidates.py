@@ -317,12 +317,19 @@ def get_my_trust_score(
     current_user: User = Depends(get_current_candidate),
 ):
     """Return stored trust score (DB read — no rebuild)."""
-    candidate = get_candidate_by_user_id(db=db, user_id=current_user.id)
-    if not candidate:
-        raise HTTPException(status_code=404, detail="Candidate profile not found")
+    trust = candidate.trust_score_json or {}
+    profile = candidate.normalized_profile_json or {}
+
+    safe_trust_data = {
+        "profile_completeness": profile.get("confidence_score", 0),
+        "missing_evidence": trust.get("unsupported_claims", []),
+        "concerns": trust.get("concerns", []),
+        "recommendations": "Ensure GitHub and LinkedIn are linked, and certificates are updated to improve profile completeness."
+    }
+
     return {
         "id": candidate.id,
-        "trust_score": candidate.trust_score_json or {},
+        "trust_score": safe_trust_data,
     }
 
 
@@ -337,11 +344,19 @@ def rebuild_my_profile(
         raise HTTPException(status_code=404, detail="Candidate profile not found")
 
     profile, trust = rebuild_candidate_intelligence(db=db, candidate=candidate)
+    
+    safe_trust_data = {
+        "profile_completeness": profile.get("confidence_score", 0),
+        "missing_evidence": trust.get("unsupported_claims", []),
+        "concerns": trust.get("concerns", []),
+        "recommendations": "Ensure GitHub and LinkedIn are linked, and certificates are updated to improve profile completeness."
+    }
+
     return {
         "id": candidate.id,
         "message": "Profile and trust score rebuilt successfully",
         "normalized_profile": profile,
-        "trust_score": trust,
+        "trust_score": safe_trust_data,
     }
 
 @router.get("/", response_model=CandidateListResponse)

@@ -9,6 +9,8 @@ from app.services.interview_service import (
     _deterministic_behavioral,
     _deterministic_verification,
     _deterministic_project,
+    _deterministic_risk,
+    _deterministic_leadership,
 )
 
 
@@ -90,13 +92,13 @@ class TestDeterministicBehavioral:
         assert len(qs) >= 1
 
 
-class TestDeterministicVerification:
+class TestDeterministicRisk:
     def test_concerns_become_questions(self):
         trust = {
             "concerns": ["Title mismatch: resume says Lead, LinkedIn says Senior"],
             "unsupported_claims": [],
         }
-        qs = _deterministic_verification(trust)
+        qs = _deterministic_risk(trust)
         assert len(qs) >= 1
         assert any("mismatch" in q.lower() or "noticed" in q.lower() for q in qs)
 
@@ -105,7 +107,7 @@ class TestDeterministicVerification:
             "concerns": [],
             "unsupported_claims": ["Kubernetes", "Machine Learning"],
         }
-        qs = _deterministic_verification(trust)
+        qs = _deterministic_risk(trust)
         assert len(qs) >= 1
         assert any("Kubernetes" in q or "kubernetes" in q.lower() for q in qs)
 
@@ -114,11 +116,11 @@ class TestDeterministicVerification:
             "concerns": ["Date gap in 2020"],
             "unsupported_claims": ["AWS"],
         }
-        qs = _deterministic_verification(trust)
+        qs = _deterministic_risk(trust)
         assert len(qs) >= 2
 
     def test_empty_trust_data(self):
-        qs = _deterministic_verification({})
+        qs = _deterministic_risk({})
         assert qs == []
 
     def test_max_six_questions(self):
@@ -126,8 +128,13 @@ class TestDeterministicVerification:
             "concerns": [f"Concern {i}" for i in range(10)],
             "unsupported_claims": [f"Skill{i}" for i in range(10)],
         }
-        qs = _deterministic_verification(trust)
+        qs = _deterministic_risk(trust)
         assert len(qs) <= 6
+
+class TestDeterministicVerification:
+    def test_general_verification_questions(self):
+        qs = _deterministic_verification({})
+        assert len(qs) == 2
 
 
 class TestDeterministicProject:
@@ -170,9 +177,10 @@ class TestGenerateInterviewPlan:
 
         assert "technical_questions" in plan
         assert "behavioral_questions" in plan
+        assert "leadership_questions" in plan
         assert "verification_questions" in plan
         assert "project_questions" in plan
-        assert "optimisation_based_questions" in plan
+        assert "risk_questions" in plan
         assert isinstance(plan["technical_questions"], list)
 
     def test_verification_questions_from_trust(self):
@@ -190,8 +198,8 @@ class TestGenerateInterviewPlan:
             mock_enrich.side_effect = Exception("test")
             plan = generate_interview_plan(job, candidate, application)
 
-        verif = plan["verification_questions"]
-        assert len(verif) >= 1
+        risk = plan["risk_questions"]
+        assert len(risk) >= 1
 
     def test_gemini_failure_returns_deterministic(self):
         """Even if Gemini completely fails, the plan must be non-empty."""
@@ -215,9 +223,10 @@ class TestGenerateInterviewPlan:
         enriched = {
             "technical_questions": ["Enriched technical question?"],
             "behavioral_questions": ["Enriched behavioral question?"],
+            "leadership_questions": [],
             "verification_questions": [],
             "project_questions": ["Enriched project question?"],
-            "optimisation_based_questions": ["Enriched optimisation question?"],
+            "risk_questions": ["Enriched risk question?"],
         }
 
         with patch("app.services.interview_service._llm_enrich_questions",

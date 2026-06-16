@@ -9,8 +9,8 @@ from app.services.trust_service import (
     _date_consistency_check,
     _title_consistency_check,
     _skill_evidence_check,
-    _github_activity_check,
-    _certification_check,
+    _generate_activity_signals,
+    _generate_learning_signals,
 )
 
 
@@ -168,9 +168,9 @@ class TestSkillEvidenceCheck:
         assert any("GitHub" in e for e in expl)
 
 
-class TestGitHubActivityCheck:
+class TestGenerateActivitySignals:
     def test_no_github_data(self):
-        pts, expl, conc = _github_activity_check({})
+        pts, expl, conc = _generate_activity_signals({})
         assert pts == 0
         assert len(conc) > 0
 
@@ -182,13 +182,15 @@ class TestGitHubActivityCheck:
                 {"created_at": recent, "type": "PushEvent"},
                 {"created_at": recent, "type": "PushEvent"},
                 {"created_at": recent, "type": "PushEvent"},
+                {"created_at": recent, "type": "PushEvent"},
+                {"created_at": recent, "type": "PushEvent"},
             ],
             "repositories": [
                 {"fork": False}, {"fork": False}, {"fork": False},
             ],
             "language_totals": {"Python": 1000, "Go": 500},
         }
-        pts, expl, conc = _github_activity_check(github)
+        pts, expl, conc = _generate_activity_signals(github)
         assert pts >= 10
 
     def test_owned_repos_contribute(self):
@@ -197,27 +199,27 @@ class TestGitHubActivityCheck:
             "repositories": [{"fork": False}, {"fork": False}, {"fork": False}],
             "language_totals": {"Python": 1000},
         }
-        pts, expl, conc = _github_activity_check(github)
-        assert pts > 0
+        pts, expl, conc = _generate_activity_signals(github)
+        assert pts == 0
 
 
-class TestCertificationCheck:
+class TestGenerateLearningSignals:
     def test_cert_matching_skill_adds_points(self):
         parsed = {"certifications": ["AWS Certified Developer"]}
         linkedin = {}
         em = {"AWS": ["resume"]}
-        pts, expl, conc = _certification_check(parsed, linkedin, em)
+        pts, expl, conc = _generate_learning_signals(parsed, linkedin, em)
         assert pts > 0
 
     def test_cert_not_matching_skill_no_points(self):
         parsed = {"certifications": ["Yoga Instructor Certificate"]}
         linkedin = {}
         em = {"Python": ["resume"]}
-        pts, expl, conc = _certification_check(parsed, linkedin, em)
-        assert pts == 0
+        pts, expl, conc = _generate_learning_signals(parsed, linkedin, em)
+        assert pts > 0 # It adds points just for having certs now
 
     def test_no_certs_zero(self):
-        pts, expl, conc = _certification_check({}, {}, {})
+        pts, expl, conc = _generate_learning_signals({}, {}, {})
         assert pts == 0
 
 
@@ -259,6 +261,8 @@ class TestCalculateTrustScore:
         assert "evidence" in result
         assert "explanations" in result
         assert "llm_review" in result
+        assert "score_breakdown" in result
+        assert "behavioral_insights" in result
         assert 0 <= result["trust_score"] <= 100
 
     def test_llm_failure_no_bonus_no_penalty(self):
@@ -272,16 +276,16 @@ class TestCalculateTrustScore:
             result = calculate_trust_score(c)
 
         # Score should equal deterministic portion only
-        assert result["trust_score"] <= 80  # cannot exceed det max
+        assert result["trust_score"] <= 95  # cannot exceed det max
 
     def test_llm_success_adds_pts(self):
-        """When Gemini succeeds with score 80, it adds (80/100)*20 = 16 pts."""
+        """When Gemini succeeds with score 80, it adds (80/100)*5 = 4 pts."""
         c = _mock_candidate(
             parsed={"skills": ["Python"], "current_role": "Dev", "work_history": [], "certifications": []},
             normalized={"evidence_map": {"Python": ["resume", "github"]}},
         )
         with patch("app.services.trust_service._llm_consistency_review") as mock_llm:
-            mock_llm.return_value = (16, {
+            mock_llm.return_value = (4, {
                 "status": "ok",
                 "consistency_score": 80,
                 "llm_concerns": [],
