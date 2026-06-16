@@ -763,21 +763,18 @@ Recommended next tests:
 - GitHub ingestion exists, but it currently uses unauthenticated public API calls and does not persist raw API responses.
 - Trust scoring implemented.
 - LinkedIn ingestion exists, but it is deterministic section parsing only and does not use LLM cleanup yet.
-- Normalized profile generation is pending.
+- Normalized profile generation is implemented via `profile_service.py`.
 - Interview copilot is implemented.
 - Candidate manual profile editing is pending.
 - Recruiter candidate detail endpoint scoped through application relationship is pending.
 - Public job detail exposes raw JD and parsed JD.
-- Empty placeholder API modules may confuse future agents.
 
 ## Future Roadmap
 
 Recommended implementation order:
 
-1. Add normalized profile storage and generation.
-2. Add deterministic trust score engine.
-3. Update ranking to read normalized profile while preserving deterministic MVP behavior.
-4. Add recruiter-scoped candidate detail endpoint if product requires it.
+1. Update ranking to read normalized profile while preserving deterministic MVP behavior.
+2. Add recruiter-scoped candidate detail endpoint if product requires it.
 5. Add stateless interview copilot endpoint.
 6. Harden production config, CORS, token/session policy, upload scanning, and CI.
 

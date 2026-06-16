@@ -17,8 +17,5 @@
 
 ## Clean Code & Structural Issues
 
-- `app/api/ranking.py` exists but is an empty placeholder.
-- Pydantic `Field(example=...)` is deprecated in V2, need to migrate to `Field(json_schema_extra=...)` in schemas (e.g. `app/schemas/auth.py`).
-- SQLAlchemy `echo=True` should be disabled in production (`app/db/database.py`).
 - GitHub service uses unauthenticated public API calls, prone to rate limits.
 - Missing rate limiting across all endpoints.

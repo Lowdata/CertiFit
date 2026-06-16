@@ -21,9 +21,9 @@ class LoginRequest(
     BaseModel
 ):
 
-    email: EmailStr = Field(example="ayush@gmail.com")
+    email: EmailStr = Field(json_schema_extra={"example": "ayush@gmail.com"})
 
-    password: str = Field(example="ayush123")
+    password: str = Field(json_schema_extra={"example": "ayush123"})
 
 
 class TokenResponse(
