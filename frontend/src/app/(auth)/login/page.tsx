@@ -5,8 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -29,49 +29,71 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <Card className="w-full max-w-md shadow-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">CertiFit</CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
-            </Button>
-            <p className="text-center text-sm text-slate-500">
-              Don't have an account?{" "}
-              <Link href="/register" className="text-indigo-600 hover:underline font-medium">
-                Register
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 w-full">
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">Welcome back</h2>
+        <p className="text-sm text-slate-500">Sign in to continue hiring with confidence.</p>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium text-slate-700">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full h-11 border-slate-200 focus-visible:ring-1 focus-visible:ring-blue-600 focus-visible:border-blue-600 transition-colors"
+            required
+            disabled={loading}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium text-slate-700">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full h-11 border-slate-200 focus-visible:ring-1 focus-visible:ring-blue-600 focus-visible:border-blue-600 transition-colors"
+            required
+            disabled={loading}
+          />
+        </div>
+
+        {error && (
+          <div className="p-3 bg-amber-50/50 border border-amber-200/50 rounded-lg">
+            <p className="text-sm text-amber-600 font-medium">{error}</p>
+          </div>
+        )}
+
+        <Button 
+          type="submit" 
+          className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all" 
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Signing In...
+            </>
+          ) : (
+            "Sign In"
+          )}
+        </Button>
+        
+        <div className="pt-4 text-center">
+          <p className="text-sm text-slate-500">
+            Don't have an account?{" "}
+            <Link href="/register" className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors">
+              Create an account
+            </Link>
+          </p>
+        </div>
+      </form>
     </div>
   );
 }
