@@ -1,10 +1,9 @@
 import { CheckCircle2 } from "lucide-react";
 import React from "react";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen pt-20 grid lg:grid-cols-2 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {/* Left Side: Branding (Hidden on mobile, or stacked above) */}
       <div className="relative flex-col justify-between hidden lg:flex p-12 lg:p-20 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden transition-colors duration-300">
         {/* Soft slate radial pattern background */}
@@ -13,14 +12,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Subtle mesh/graph background hint */}
         <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none" />
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-16">
-            <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-xl leading-none">C</span>
-            </div>
-            <span className="font-bold text-xl tracking-tight">CertiFit</span>
-          </div>
-
+        <div className="relative z-10 pt-8">
           <div className="max-w-md">
             <div className="inline-flex items-center rounded-full border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 mb-6 transition-colors">
               AI-Powered Recruitment Intelligence
@@ -58,18 +50,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* Right Side: Auth Form Container */}
-      <div className="flex flex-col justify-center px-4 py-12 sm:px-6 lg:px-8 relative bg-[#FAFAFA] dark:bg-slate-950 transition-colors duration-300">
-        <div className="absolute top-4 right-4 sm:top-8 sm:right-8">
-          <ThemeToggle />
-        </div>
-        {/* Mobile Header (Shows only on mobile) */}
-        <div className="flex items-center gap-2 mb-8 lg:hidden justify-center">
-          <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
-            <span className="text-white font-bold text-xl leading-none">C</span>
-          </div>
-          <span className="font-bold text-xl tracking-tight">CertiFit</span>
-        </div>
-
+      <div className="flex flex-col justify-center px-4 py-8 sm:px-6 lg:px-8 relative bg-[#FAFAFA] dark:bg-slate-950 transition-colors duration-300">
         <div className="mx-auto w-full max-w-[450px]">
           {children}
         </div>
