@@ -6,7 +6,6 @@
 - [ ] GitHub auth/token support
 - [ ] Rate limiting
 - [ ] Malware scanning
-- [ ] CORS hardening
 - [ ] Better LinkedIn parsing edge cases
 - [ ] Voice interview module
 - [ ] Production observability/logging
@@ -17,7 +16,7 @@
 - Recruiter candidate detail endpoint scoped through application relationship is implemented via `GET /applications/{id}/candidate-report`.
 - Public job detail exposes raw JD and parsed JD.
 - Add recruiter-scoped candidate detail endpoint if product requires it.
-- Harden production config, CORS, token/session policy, upload scanning, and CI.
+- Harden production config, token/session policy, upload scanning, and CI.
 
 ## Codebase Flags (TODOs, FIXMEs, etc.)
 

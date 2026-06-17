@@ -74,7 +74,7 @@
 ### 4.2 Production Hardening & Security
 - **[Pending] GitHub API Authentication**: The GitHub service relies on unauthenticated API calls, which are highly susceptible to rate-limiting at scale.
 - **[Pending] Global Rate Limiting**: Required across all endpoints to prevent abuse.
-- **[Pending] Application Security**: Harden CORS, refine the token/session policy, and implement strict anti-malware upload scanning for PDFs and DOCXs.
+- **[Pending] Application Security**: refine the token/session policy, and implement strict anti-malware upload scanning for PDFs and DOCXs.
 
 ---
 *Document automatically generated to serve as an optimized context layer for Retrieval-Augmented Generation (RAG) models, capturing the complete CertiFit ecosystem as of the current build.*

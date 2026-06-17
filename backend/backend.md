@@ -23,7 +23,6 @@ Planned MVP expansions include GitHub ingestion, LinkedIn PDF ingestion, normali
 - [ ] GitHub auth/token support
 - [ ] Rate limiting
 - [ ] Malware scanning
-- [ ] CORS hardening
 - [ ] Better LinkedIn parsing edge cases
 - [ ] Voice interview module
 - [ ] Production observability/logging
@@ -693,7 +692,6 @@ Known production gaps:
 - No refresh token/session revocation.
 - No password policy.
 - No rate limits.
-- No CORS config.
 - No malware scanning for uploads.
 - No explicit data retention policy.
 - No request-size limit at server/proxy level visible in repo.
@@ -786,7 +784,7 @@ Recommended implementation order:
 1. Update ranking to read normalized profile while preserving deterministic MVP behavior.
 2. Add recruiter-scoped candidate detail endpoint if product requires it.
 5. Add stateless interview copilot endpoint.
-6. Harden production config, CORS, token/session policy, upload scanning, and CI.
+6. Harden production config, token/session policy, upload scanning, and CI.
 7. Add text-to-speech and audio-to-text modules for AI-based interviews.
 
 Completed roadmap items:
