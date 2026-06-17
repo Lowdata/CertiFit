@@ -1,6 +1,16 @@
 # Codebase Flags & Future Improvements
 
 
+## Remaining MVP Backend Tasks (Frontend Integration Phase)
+
+- [ ] GitHub auth/token support
+- [ ] Rate limiting
+- [ ] Malware scanning
+- [ ] CORS hardening
+- [ ] Better LinkedIn parsing edge cases
+- [ ] Voice interview module
+- [ ] Production observability/logging
+
 ## Known Limitations & Roadmap (from backend.md)
 
 - Candidate manual profile editing is pending.
