@@ -27,8 +27,10 @@ Current goals:
 | --- | --- | --- |
 | Setup | ✅ Implemented | Next.js initialized with Tailwind CSS. |
 | CORS Integration | ✅ Implemented | Backend CORS middleware added; preflight `OPTIONS` requests now succeed. |
+| Landing Page | ✅ Implemented | High-end SaaS design, dynamic radial backgrounds, bento grid features. |
+| Global Header | ✅ Implemented | Extracted into `<Header />` with integrated `ThemeToggle`. |
 | Authentication UI | ✅ Implemented | Split-screen enterprise layout (Geist font) for Login/Register. |
-| Authentication Logic | 🚧 In Progress | Forms hook up to `useAuth()`. Backend integration verified for CORS. |
+| Authentication Logic | 🚧 In Progress | Forms hook up to `useAuth()`. Need to verify token storage and routing. |
 | Candidate Dashboard | ⏳ Pending | |
 | Recruiter Dashboard | ⏳ Pending | |
 
@@ -55,10 +57,12 @@ The frontend connects to the backend API running locally (e.g., `http://localhos
 
 ## Roadmap & Next Steps
 
-1. Verify complete Authentication API flow via the new Login/Register forms.
-2. Build Candidate profile and job listing views.
-3. Build Recruiter job management and application review views.
+## Roadmap & Next Steps
+
+1. Verify complete Authentication API flow (Token storage, User Type detection).
+2. Build Dashboard Shells (Sidebar layout for Candidates and Recruiters).
+3. Build Candidate profile and job listing views.
+4. Build Recruiter job management and application review views.
 
 ## Known Limitations & Issues
-
-- Currently resolving a Next.js error: `The default export is not a React Component in "/login/page"`.
+- None at the moment.
