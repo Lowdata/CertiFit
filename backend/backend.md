@@ -16,7 +16,7 @@ CertiFit is an MVP recruiting backend for matching candidates to recruiter-owned
 - Deterministic match scoring.
 - Alembic migrations.
 
-Planned MVP expansions include GitHub ingestion, LinkedIn PDF ingestion, normalized profile generation, trust scoring, and interview copilot support.
+Planned MVP expansions include GitHub ingestion, LinkedIn PDF ingestion, normalized profile generation, trust scoring, interview copilot support, and AI-based interview audio modules (text-to-speech and audio-to-text).
 
 ## MVP Goals
 
@@ -777,6 +777,7 @@ Recommended implementation order:
 2. Add recruiter-scoped candidate detail endpoint if product requires it.
 5. Add stateless interview copilot endpoint.
 6. Harden production config, CORS, token/session policy, upload scanning, and CI.
+7. Add text-to-speech and audio-to-text modules for AI-based interviews.
 
 Completed roadmap items:
 
