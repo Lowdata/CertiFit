@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
-import { Header } from "@/components/layout/header";
 
 const geist = Geist({ subsets: ["latin"] });
 
@@ -20,10 +19,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={geist.className}>
         <Providers>
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
+          {children}
         </Providers>
       </body>
     </html>

@@ -10,10 +10,19 @@ export interface RegisterRequest {
   user_type: 1 | 2;
 }
 
-export interface AuthResponse {
+export interface LoginResponse {
   access_token: string;
   token_type: string;
-  user_id: number;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    user_type: 1 | 2;
+  };
+}
+
+export interface RegisterResponse {
+  id: number;
   name: string;
   email: string;
   user_type: 1 | 2;
