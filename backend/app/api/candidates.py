@@ -296,7 +296,7 @@ async def upload_linkedin_profile(
     }
 
 
-@router.get("/me/profile", response_model=NormalizedProfileResponse)
+@router.get("/me/profile")
 def get_my_normalized_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_candidate),
@@ -305,25 +305,33 @@ def get_my_normalized_profile(
     candidate = get_candidate_by_user_id(db=db, user_id=current_user.id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found")
+        
+    profile_data = candidate.normalized_profile_json or {}
+    if "confidence_score" in profile_data:
+        del profile_data["confidence_score"]
+        
     return {
         "id": candidate.id,
-        "normalized_profile": candidate.normalized_profile_json or {},
+        "normalized_profile": profile_data,
     }
 
 
-@router.get("/me/trust", response_model=TrustScoreResponse)
+@router.get("/me/trust")
 def get_my_trust_score(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_candidate),
 ):
-    """Return stored trust score (DB read — no rebuild)."""
+    """Return stored trust score but masked for candidates."""
+    candidate = get_candidate_by_user_id(db=db, user_id=current_user.id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
     trust = candidate.trust_score_json or {}
     profile = candidate.normalized_profile_json or {}
 
+    # Completely hide actual scores from candidate
     safe_trust_data = {
-        "profile_completeness": profile.get("confidence_score", 0),
         "missing_evidence": trust.get("unsupported_claims", []),
-        "concerns": trust.get("concerns", []),
         "recommendations": "Ensure GitHub and LinkedIn are linked, and certificates are updated to improve profile completeness."
     }
 
@@ -333,7 +341,7 @@ def get_my_trust_score(
     }
 
 
-@router.post("/me/profile/rebuild", response_model=RebuildProfileResponse)
+@router.post("/me/profile/rebuild")
 def rebuild_my_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_candidate),
@@ -345,16 +353,18 @@ def rebuild_my_profile(
 
     profile, trust = rebuild_candidate_intelligence(db=db, candidate=candidate)
     
+    # Strip sensitive scores
+    if "confidence_score" in profile:
+        del profile["confidence_score"]
+    
     safe_trust_data = {
-        "profile_completeness": profile.get("confidence_score", 0),
         "missing_evidence": trust.get("unsupported_claims", []),
-        "concerns": trust.get("concerns", []),
         "recommendations": "Ensure GitHub and LinkedIn are linked, and certificates are updated to improve profile completeness."
     }
 
     return {
         "id": candidate.id,
-        "message": "Profile and trust score rebuilt successfully",
+        "message": "Profile rebuilt successfully",
         "normalized_profile": profile,
         "trust_score": safe_trust_data,
     }
