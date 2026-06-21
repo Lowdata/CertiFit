@@ -1,0 +1,403 @@
+"""
+Interview Copilot Service.
+
+Generates a structured interview plan from:
+  - job.parsed_jd_json
+  - candidate.normalized_profile_json  (evidence_map, verified_skills)
+  - candidate.trust_score_json         (concerns, unsupported_claims)
+  - application.fit_score / composite_score
+
+Output:
+{
+    "technical_questions": [],
+    "behavioral_questions": [],
+    "leadership_questions": [],
+    "verification_questions": [],
+    "project_questions": [],
+    "risk_questions": []
+}
+
+Gemini is used to generate natural question text.
+If Gemini fails, deterministic fallback questions are generated from templates.
+"""
+from __future__ import annotations
+
+import json
+import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.models.candidate import Candidate
+    from app.models.job import Job
+    from app.models.application import Application
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Deterministic fallback generators
+# ---------------------------------------------------------------------------
+
+_TECH_TEMPLATES = {
+    "kubernetes": [
+        "Walk me through a production Kubernetes deployment — how did you configure resource limits and autoscaling?",
+        "Describe how you handled a pod crash or node failure in Kubernetes.",
+    ],
+    "docker": [
+        "Explain how you optimise Docker image size in a production pipeline.",
+        "How do you manage secrets in a Dockerised application?",
+    ],
+    "aws": [
+        "Which AWS services have you used most heavily and what problems were you solving?",
+        "Describe an incident where an AWS service limit or failure affected your system.",
+    ],
+    "machine learning": [
+        "Describe an ML model you trained in production — what was the dataset size and how did you evaluate it?",
+        "How did you handle data drift or model degradation after deployment?",
+    ],
+    "python": [
+        "What is your preferred Python project structure for a production service?",
+        "Describe a performance bottleneck in Python you diagnosed and resolved.",
+    ],
+    "react": [
+        "Explain how you manage global state in a large React application.",
+        "How do you optimise rendering performance in React?",
+    ],
+}
+
+_BEHAVIORAL_BY_SENIORITY = {
+    "lead": [
+        "Tell me about a time you had to make a significant architectural decision under time pressure.",
+        "How do you align engineering priorities with business goals when they conflict?",
+        "Describe a situation where you had to manage technical debt against feature delivery.",
+    ],
+    "senior": [
+        "Describe a technically complex problem you solved — what was the approach and trade-offs?",
+        "Tell me about a time you disagreed with a technical decision and how you handled it.",
+        "How do you balance code quality with delivery speed?",
+    ],
+    "default": [
+        "Tell me about the most challenging project you have worked on.",
+        "Describe a time you had to learn a new technology quickly — what was your approach?",
+        "How do you handle disagreements with teammates on technical approaches?",
+    ],
+}
+
+
+def _deterministic_technical(
+    required_skills: list[str],
+    profile: dict,
+) -> list[str]:
+    """Generate technical questions from JD required skills + candidate profile."""
+    questions: list[str] = []
+    evidence_map = profile.get("evidence_map") or {}
+
+    for skill in required_skills[:6]:
+        key = skill.lower().strip()
+        sources = evidence_map.get(skill) or []
+        source_note = f" (claimed in {', '.join(sources)})" if sources else " (claimed in resume)"
+
+        # Check if we have a template for this skill
+        matched_template = None
+        for template_key, template_qs in _TECH_TEMPLATES.items():
+            if template_key in key:
+                matched_template = template_qs[0]
+                break
+
+        if matched_template:
+            questions.append(matched_template)
+        else:
+            questions.append(
+                f"Explain your hands-on experience with {skill}{source_note}. "
+                f"Give a specific example from a production context."
+            )
+
+    return questions[:8]
+
+
+def _deterministic_behavioral(job_data: dict) -> list[str]:
+    """Generate behavioral questions from job seniority/leadership signals."""
+    seniority = (job_data.get("seniority") or "").lower()
+    if seniority in {"lead", "staff", "principal"}:
+        return _BEHAVIORAL_BY_SENIORITY["lead"]
+    if seniority in {"senior"}:
+        return _BEHAVIORAL_BY_SENIORITY["senior"]
+    return _BEHAVIORAL_BY_SENIORITY["default"]
+
+
+def _deterministic_verification(profile: dict) -> list[str]:
+    """Generate general verification questions."""
+    return [
+        "Can you verify your most recent title and dates of employment?",
+        "Could you briefly explain your role in your most recent project?"
+    ]
+
+def _deterministic_leadership(job_data: dict) -> list[str]:
+    seniority = (job_data.get("seniority") or "").lower()
+    if seniority in {"lead", "staff", "principal"}:
+        return _BEHAVIORAL_BY_SENIORITY["lead"]
+    return []
+
+def _deterministic_risk(trust_data: dict) -> list[str]:
+    """Generate risk questions from trust concerns and unsupported claims."""
+    questions: list[str] = []
+
+    for concern in (trust_data.get("concerns") or [])[:3]:
+        questions.append(f"I noticed a potential concern: {concern}. Can you provide context on this?")
+
+    for claim in (trust_data.get("unsupported_claims") or [])[:3]:
+        key = claim.lower()
+        matched_template = None
+        for template_key, template_qs in _TECH_TEMPLATES.items():
+            if template_key in key:
+                matched_template = template_qs[-1]  # use second template for verification
+                break
+
+        if matched_template:
+            questions.append(matched_template)
+        else:
+            questions.append(
+                f"Your profile mentions {claim}, but we could not find implementation evidence. "
+                f"Can you walk me through a specific project where you applied this in a meaningful way?"
+            )
+
+    return questions[:6]
+
+
+def _deterministic_project(profile: dict) -> list[str]:
+    """Generate project walk-through questions from GitHub repos and project URLs."""
+    questions: list[str] = []
+    projects = profile.get("projects") or []
+
+    for project in projects[:3]:
+        if project.get("source") == "github":
+            name = project.get("name") or "your repository"
+            desc = project.get("description") or ""
+            lang = project.get("language") or ""
+            lang_note = f" (built in {lang})" if lang else ""
+            desc_note = f": {desc[:80]}" if desc else ""
+            questions.append(
+                f"Walk me through your '{name}' project{lang_note}{desc_note}. "
+                f"What problem does it solve and what were the key engineering decisions?"
+            )
+        elif project.get("source") == "resume":
+            url = project.get("url") or ""
+            questions.append(
+                f"Tell me about the project at {url}. "
+                f"What was your specific contribution and what did you learn?"
+            )
+
+    if not questions:
+        questions.append(
+            "Walk me through a personal or open-source project you are most proud of. "
+            "What were the hardest engineering challenges?"
+        )
+
+    return questions[:5]
+
+
+# ---------------------------------------------------------------------------
+# LLM enrichment
+# ---------------------------------------------------------------------------
+
+def _fallback_interview_plan(reason: str) -> dict[str, Any]:
+    return {
+        "technical_questions": [],
+        "behavioral_questions": [],
+        "leadership_questions": [],
+        "verification_questions": [],
+        "project_questions": [],
+        "risk_questions": [],
+        "_reason": reason,
+    }
+
+
+def _llm_enrich_questions(
+    technical: list[str],
+    behavioral: list[str],
+    leadership: list[str],
+    verification: list[str],
+    project: list[str],
+    risk: list[str],
+    job_title: str,
+    job_description: dict,
+    candidate_profile: dict,
+    trust_data: dict,
+    fit_score: float,
+    trust_score: float,
+) -> dict[str, Any]:
+    """
+    Use Gemini to generate deep, profile-aware interview questions grounded in
+    the candidate's actual profile, the job description, and their fit/trust
+    scores. Falls back to deterministic questions on any failure.
+    """
+    try:
+        from google import genai
+        from app.core.config import GEMINI_API_KEY
+        from app.services.llm_validation import safe_gemini_call
+
+        client = genai.Client(api_key=GEMINI_API_KEY)
+    except Exception as exc:
+        logger.warning("Gemini init failed for interview enrichment: %s", exc)
+        return {
+            "technical_questions": technical,
+            "behavioral_questions": behavioral,
+            "leadership_questions": leadership,
+            "verification_questions": verification,
+            "project_questions": project,
+            "risk_questions": risk,
+        }
+
+    prompt = f"""You are an Expert Technical Interviewer hiring for the role of {job_title}.
+
+=== JOB DESCRIPTION ===
+{json.dumps(job_description, indent=2)}
+
+=== CANDIDATE PROFILE ===
+Fit Score: {fit_score}/100
+Trust Score: {trust_score}/100
+
+Profile Data:
+{json.dumps(candidate_profile, indent=2)}
+
+Trust Concerns (Unverified Claims):
+{json.dumps(trust_data.get('unsupported_claims', []), indent=2)}
+
+=== TASK ===
+Based heavily on the Candidate Profile's actual projects, skills, and experience, generate a 30-minute interview plan.
+
+1. technical_questions: Generate 3 deep technical questions based specifically on the tech stack in their profile.
+2. behavioral_questions: Generate 2 behavioral questions tailored to their seniority level.
+3. leadership_questions: Generate 2 questions about their leadership and project ownership experience.
+4. verification_questions: Generate 2 questions that verify basic employment history and project involvement.
+5. project_questions: Generate 2 questions asking them to walk through specific projects listed in their profile data.
+6. risk_questions: Generate 2 questions that directly probe their "Trust Concerns" or unverified claims. Ask for specific proof of their involvement or clarify any inconsistencies.
+
+Return ONLY valid JSON in this exact shape:
+{{
+  "technical_questions": ["<question 1>", "<question 2>", "<question 3>"],
+  "behavioral_questions": ["<question 1>", "<question 2>"],
+  "leadership_questions": ["<question 1>", "<question 2>"],
+  "verification_questions": ["<question 1>", "<question 2>"],
+  "project_questions": ["<question 1>", "<question 2>"],
+  "risk_questions": ["<question 1>", "<question 2>"]
+}}
+
+Rules:
+- Ground every question in specific details from the Candidate Profile and Job Description
+- Do NOT mention any specific candidate name
+"""
+
+    schema_keys = [
+        "technical_questions",
+        "behavioral_questions",
+        "leadership_questions",
+        "verification_questions",
+        "project_questions",
+        "risk_questions",
+    ]
+
+    def _fallback(reason: str) -> dict:
+        return {
+            "technical_questions": technical,
+            "behavioral_questions": behavioral,
+            "leadership_questions": leadership,
+            "verification_questions": verification,
+            "project_questions": project,
+            "risk_questions": risk,
+        }
+
+    result, meta = safe_gemini_call(
+        client=client,
+        prompt=prompt,
+        schema_keys=schema_keys,
+        fallback_fn=_fallback,
+        label="interview_enrichment",
+    )
+
+    # Validate each list is actually a list, fall back to deterministic if not
+    out = {}
+    for key, fallback_val in [
+        ("technical_questions", technical),
+        ("behavioral_questions", behavioral),
+        ("leadership_questions", leadership),
+        ("verification_questions", verification),
+        ("project_questions", project),
+        ("risk_questions", risk),
+    ]:
+        val = result.get(key)
+        out[key] = val if isinstance(val, list) and val else fallback_val
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def generate_interview_plan(
+    job: "Job",
+    candidate: "Candidate",
+    application: "Application",
+) -> dict[str, Any]:
+    """
+    Generate a structured interview plan.
+
+    Consumes job parsed JD, candidate normalized profile, trust findings, and
+    the application's fit/trust scores. Uses Gemini to generate deep,
+    profile-aware questions; falls back to deterministic templates.
+    """
+    job_data = job.parsed_jd_json or {}
+    profile = candidate.normalized_profile_json or {}
+    trust_data = candidate.trust_score_json or {}
+
+    fit_score = application.fit_score
+    trust_score = application.trust_score
+    candidate_profile = candidate.normalized_profile_json or candidate.parsed_candidate_json or {}
+    job_description = job.parsed_jd_json or {}
+
+    required_skills = job_data.get("required_skills") or []
+    job_title = job_data.get("role") or job.title or "Software Engineer"
+
+    # Generate deterministic base questions
+    technical = _deterministic_technical(required_skills, profile)
+    behavioral = _deterministic_behavioral(job_data)
+    leadership = _deterministic_leadership(job_data)
+    verification = _deterministic_verification(profile)
+    project = _deterministic_project(profile)
+    risk = _deterministic_risk(trust_data)
+
+    # Enrich with LLM (graceful fallback to deterministic)
+    try:
+        enriched = _llm_enrich_questions(
+            technical=technical,
+            behavioral=behavioral,
+            leadership=leadership,
+            verification=verification,
+            project=project,
+            risk=risk,
+            job_title=job_title,
+            job_description=job_description,
+            candidate_profile=candidate_profile,
+            trust_data=trust_data,
+            fit_score=fit_score,
+            trust_score=trust_score,
+        )
+    except Exception:
+        logger.exception("Interview LLM enrichment failed; using deterministic questions")
+        enriched = {
+            "technical_questions": technical,
+            "behavioral_questions": behavioral,
+            "leadership_questions": leadership,
+            "verification_questions": verification,
+            "project_questions": project,
+            "risk_questions": risk,
+        }
+
+    return {
+        "technical_questions": enriched.get("technical_questions") or technical,
+        "behavioral_questions": enriched.get("behavioral_questions") or behavioral,
+        "leadership_questions": enriched.get("leadership_questions") or leadership,
+        "verification_questions": enriched.get("verification_questions") or verification,
+        "project_questions": enriched.get("project_questions") or project,
+        "risk_questions": enriched.get("risk_questions") or risk,
+    }

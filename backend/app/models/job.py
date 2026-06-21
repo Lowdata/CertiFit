@@ -3,6 +3,8 @@ from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy import Text
 from sqlalchemy import DateTime
+from sqlalchemy import ForeignKey
+from sqlalchemy import JSON
 from sqlalchemy import func
 
 from sqlalchemy.orm import Mapped
@@ -22,6 +24,12 @@ class Job(Base):
         index=True
     )
 
+    recruiter_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True
+    )
+
     title: Mapped[str] = mapped_column(
         String(255),
         nullable=False
@@ -38,7 +46,7 @@ class Job(Base):
     )
 
     parsed_jd_json: Mapped[dict] = mapped_column(
-        JSONB,
+        JSON().with_variant(JSONB, "postgresql"),
         nullable=False,
         default=dict
     )
