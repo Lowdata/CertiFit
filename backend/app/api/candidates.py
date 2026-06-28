@@ -50,6 +50,9 @@ DOCX_SIGNATURE = b"PK"
 logger = logging.getLogger(__name__)
 
 
+
+
+
 def _safe_resume_extension(filename: str | None) -> str:
     suffix = Path(filename or "").name.lower()
     extension = Path(suffix).suffix
@@ -119,7 +122,8 @@ async def upload_candidate(
             db=db,
             user_id=current_user.id,
             file_path=file_path,
-            file_name=stored_file_name
+            file_name=stored_file_name,
+            expected_name=current_user.name
         )
 
     except HTTPException:
@@ -130,6 +134,7 @@ async def upload_candidate(
     except ValueError as exc:
         if Path(file_path).exists():
             Path(file_path).unlink()
+        logger.error("Resume upload failed: %s", str(exc))
         raise HTTPException(
             status_code=400,
             detail=str(exc),
@@ -152,7 +157,10 @@ async def upload_candidate(
 
     return {
         "id": candidate.id,
-        "resume_file_name": candidate.resume_file_name
+        "resume_file_name": candidate.resume_file_name,
+        "name_mismatch": False,
+        "name_on_resume": None,
+        "registered_name": None,
     }
 
 
@@ -278,11 +286,19 @@ async def upload_linkedin_profile(
             detail=str(exc)
         ) from exc
 
-    candidate = update_candidate_linkedin_profile(
-        db=db,
-        user_id=current_user.id,
-        linkedin_profile=linkedin_profile
-    )
+    try:
+        candidate = update_candidate_linkedin_profile(
+            db=db,
+            user_id=current_user.id,
+            linkedin_profile=linkedin_profile,
+            expected_name=current_user.name
+        )
+    except ValueError as exc:
+        logger.error("LinkedIn upload failed: %s", str(exc))
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
 
     # Rebuild intelligence after new LinkedIn data
     try:

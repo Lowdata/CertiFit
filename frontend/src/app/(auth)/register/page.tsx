@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,8 @@ import Link from "next/link";
 import { Loader2, User, Briefcase } from "lucide-react";
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, isAuthenticated, user } = useAuth();
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,14 +19,25 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.user_type === 1) {
+        router.replace("/recruiter");
+      } else {
+        router.replace("/candidate");
+      }
+    }
+  }, [isAuthenticated, user, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
       await register({ name, email, password, user_type: userType });
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Registration failed. Please try again.");
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError?.response?.data?.detail || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }

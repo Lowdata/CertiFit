@@ -18,8 +18,8 @@ export function useMyApplications() {
   return useQuery<Application[]>({
     queryKey: ["applications", "mine"],
     queryFn: async () => {
-      const res = await api.get("/applications/mine");
-      return res.data;
+      const res = await api.get("/applications/me");
+      return res.data.data;
     },
   });
 }

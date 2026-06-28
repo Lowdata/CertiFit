@@ -1,6 +1,7 @@
 # app/services/candidate_service.py
 import logging
 import os
+import datetime
 
 from app.models.candidate import Candidate
 
@@ -12,6 +13,8 @@ from app.services.llm_candidate_analyzer import (
     analyze_candidate_resume
 )
 
+from app.utils.name_matcher import names_match
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,8 @@ def create_candidate(
     db,
     user_id: int,
     file_path: str,
-    file_name: str
+    file_name: str,
+    expected_name: str | None = None
 ):
 
     try:
@@ -36,6 +40,10 @@ def create_candidate(
             resume_text,
             resume_links
         )
+
+        name_on_resume = parsed_resume.get("name")
+        if expected_name and name_on_resume and not names_match(expected_name, name_on_resume):
+            raise ValueError(f"Name mismatch detected. The name on your resume ('{name_on_resume}') doesn't match your registered name ('{expected_name}').")
 
     except ValueError:
         if os.path.exists(file_path):
@@ -197,8 +205,14 @@ def update_candidate_github_profile(
 def update_candidate_linkedin_profile(
     db,
     user_id: int,
-    linkedin_profile: dict
+    linkedin_profile: dict,
+    expected_name: str | None = None
 ):
+    
+    if expected_name:
+        name_on_linkedin = linkedin_profile.get("name")
+        if name_on_linkedin and not names_match(expected_name, name_on_linkedin):
+            raise ValueError(f"Name mismatch detected. The name on your LinkedIn profile ('{name_on_linkedin}') doesn't match your registered name ('{expected_name}').")
 
     candidate = get_candidate_by_user_id(
         db=db,

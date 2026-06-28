@@ -19,9 +19,9 @@ export default function DashboardLayout({
   if (!token) return null;
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-background">
       <div className="flex flex-col flex-1 overflow-hidden">
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto pt-16">{children}</main>
       </div>
     </div>
   );

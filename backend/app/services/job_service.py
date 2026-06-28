@@ -54,10 +54,11 @@ def get_jobs(
     page: int,
     page_size: int,
     company: str | None = None,
-    title: str | None = None
+    title: str | None = None,
+    exclude_applied_by_candidate_id: int | None = None
 ):
 
-    query = db.query(Job)
+    query = db.query(Job).filter(Job.status == "active")
 
     if company:
         query = query.filter(
@@ -68,6 +69,13 @@ def get_jobs(
         query = query.filter(
             Job.title.ilike(f"%{title}%")
         )
+
+    if exclude_applied_by_candidate_id:
+        from app.models.application import Application
+        applied_job_ids = db.query(Application.job_id).filter(
+            Application.candidate_id == exclude_applied_by_candidate_id
+        ).subquery()
+        query = query.filter(Job.id.notin_(applied_job_ids))
 
     total = query.count()
 
@@ -134,7 +142,7 @@ def delete_job(
         return None
 
     try:
-        db.delete(job)
+        job.status = "closed"
         db.commit()
 
     except Exception:
@@ -142,6 +150,35 @@ def delete_job(
         logger.exception("Database write failed while deleting job")
         raise
 
+    return job
+
+
+def update_job_status(
+    db,
+    job_id: int,
+    recruiter_id: int,
+    status: str
+):
+    job = (
+        db.query(Job)
+        .filter(
+            Job.id == job_id,
+            Job.recruiter_id == recruiter_id
+        )
+        .first()
+    )
+    if not job:
+        return None
+    
+    try:
+        job.status = status
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Database write failed while updating job status")
+        raise
+    
+    db.refresh(job)
     return job
 
 def reparse_job(

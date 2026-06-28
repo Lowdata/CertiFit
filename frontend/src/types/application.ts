@@ -4,10 +4,12 @@ export interface Application {
   candidate_id: number;
   status: "applied" | "shortlisted" | "rejected" | "hired";
   match_score: number | null;
+  match_summary: string | null;
   composite_score: number | null;
-  strengths_json: string[] | null;
-  gaps_json: string[] | null;
-  created_at: string;
+  strengths: string[] | null;
+  gaps: string[] | null;
+  applied_at: string;
+  updated_at: string;
 }
 
 export interface InterviewPlan {

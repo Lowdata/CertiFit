@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +10,22 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.user_type === 1) {
+        router.replace("/recruiter");
+      } else {
+        router.replace("/candidate");
+      }
+    }
+  }, [isAuthenticated, user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,8 +33,9 @@ export default function LoginPage() {
     setError("");
     try {
       await login({ email, password });
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Invalid credentials");
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError?.response?.data?.detail || "Invalid credentials");
     } finally {
       setLoading(false);
     }
@@ -55,6 +68,7 @@ export default function LoginPage() {
           <Input
             id="password"
             type="password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
@@ -87,7 +101,7 @@ export default function LoginPage() {
         
         <div className="pt-4 text-center">
           <p className="text-sm text-slate-500 dark:text-slate-400 transition-colors">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-medium transition-colors">
               Create an account
             </Link>

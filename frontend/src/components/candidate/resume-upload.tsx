@@ -21,8 +21,9 @@ export function ResumeUpload() {
       setFile(selectedFile);
       setError(null);
       uploadResume(selectedFile, {
-        onError: (err: any) => {
-          setError(err?.response?.data?.detail || "Failed to upload resume. Please try again.");
+        onError: (err: unknown) => {
+          const axiosError = err as { response?: { data?: { detail?: string } } };
+          setError(axiosError?.response?.data?.detail || "Failed to upload resume. Please try again.");
           setFile(null);
         }
       });

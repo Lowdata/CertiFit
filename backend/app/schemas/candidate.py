@@ -7,6 +7,9 @@ from pydantic import BaseModel
 class CandidateResponse(BaseModel):
     id: int
     resume_file_name: str
+    name_mismatch: bool = False
+    name_on_resume: str | None = None
+    registered_name: str | None = None
 
 
 class CandidateProfileResponse(CandidateResponse):
