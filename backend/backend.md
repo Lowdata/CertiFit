@@ -6,46 +6,33 @@ This is the canonical backend system design document. Keep it current after ever
 
 ## Project Overview
 
-CertiFit is an MVP recruiting backend for matching candidates to recruiter-owned jobs. It currently supports:
+CertiFit is evolving into an **AI Hiring Operating System**, a comprehensive AI Hiring Intelligence Platform. 
 
-- Recruiter and candidate authentication.
-- Recruiter-owned jobs.
-- Candidate-owned resume profiles.
-- Candidate applications.
-- Gemini-backed resume and job-description parsing.
-- Deterministic match scoring.
-- Alembic migrations.
+It currently supports:
+- Phase 1 ATS Core: Recruiter/candidate authentication, Jobs, Applications, Profile processing (Resume/LinkedIn/GitHub parsing), Trust Engine scoring, and AI Interview Copilot generation.
+- Deterministic match scoring combined with LLM-based qualitative evaluation.
+- Alembic migrations for DB schema evolution.
 
-Planned MVP expansions include GitHub ingestion, LinkedIn PDF ingestion, normalized profile generation, trust scoring, interview copilot support, and AI-based interview audio modules (text-to-speech and audio-to-text).
+Phase 2 moves beyond passive ATS features to build an **AI Screening Platform**, featuring Live Video Interviews, Speech-to-Text translation, and a dynamic AI Question Engine capable of conducting live technical and behavioral assessments.
 
-## Remaining MVP Backend Tasks (Frontend Integration Phase)
+## Upcoming Phases & Features
 
-- [ ] GitHub auth/token support
-- [ ] Rate limiting
-- [ ] Malware scanning
-- [ ] Better LinkedIn parsing edge cases
-- [ ] Voice interview module
-- [ ] Production observability/logging
+### Phase 2: AI Screening Platform
+- **Live Speech Recognition API Integration**: Translating chunked question audio to text using Whisper.
+- **Dynamic AI Question Engine**: Adapting questions (Technical, Behavioral, Leadership) based on past answers.
+- **Granular Interview Evaluation**: Scoring candidates on communication, problem solving, consistency, etc.
+- **Interview Integrity Score**: Evaluating assessment conditions (fullscreen exits, tab switches, hardware disconnects).
+- **AI Report Generation**: Generating comprehensive recommendation reports including Strengths, Weaknesses, Risk Areas, and Integrity.
 
-## MVP Goals
+### Phase 3: Hiring Intelligence
+- **Candidate 360° Profile & Timeline**: Aggregating all signals (Resume, GitHub, Interview, Trust) into one unified intelligence view.
+- **Hiring Decision Engine & Candidate Comparison**: Multi-dimensional candidate evaluation (Fit, Trust, Risk, Leadership).
+- **Talent Pool Search**: Querying across all parsed candidates independent of specific job applications.
 
-Current MVP goals:
-
-- Candidates can upload a resume, maintain a candidate profile, apply to jobs, and view their applications.
-- Recruiters can create jobs, manage only their own jobs, and view applications for their own jobs.
-- Candidate profile data is private to the owning candidate except when exposed through an application to a recruiter-owned job.
-- Ranking is deterministic and explainable for MVP.
-- Shared databases use Alembic, not `create_all()`.
-
-Out of scope for current MVP unless explicitly requested:
-
-- Teams.
-- Companies table.
-- Recruiter profiles.
-- Notifications.
-- Interview tables.
-- Embeddings or vector search.
-- Multi-tenant organizations.
+### Out of scope for immediate Phase 2 (Targeted for Phase 4/5/6)
+- Team permissions and multi-user collaboration (Comments, Mentions).
+- External integrations (Greenhouse, Workday, Slack, Google Calendar).
+- Company-wide hiring funnel analytics.
 
 ## Implementation Status
 
