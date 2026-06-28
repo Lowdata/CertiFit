@@ -41,12 +41,20 @@ export interface CandidateTrustResponse {
   };
 }
 
+export interface UploadResumeResponse {
+  id: number;
+  resume_file_name: string;
+  name_mismatch: boolean;
+  name_on_resume: string | null;
+  registered_name: string | null;
+}
+
 export const candidateApi = {
   // Upload resume
-  uploadResume: async (file: File) => {
+  uploadResume: async (file: File): Promise<UploadResumeResponse> => {
     const formData = new FormData();
     formData.append("resume", file);
-    
+
     const response = await api.post("/candidates/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",

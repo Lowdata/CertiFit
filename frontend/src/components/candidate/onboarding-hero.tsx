@@ -9,9 +9,12 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
+  X,
 } from "lucide-react";
 import { useUploadResume } from "@/hooks/use-candidate";
+import { UploadResumeResponse } from "@/lib/candidate-api";
 import { Button } from "@/components/ui/button";
 
 const FEATURE_HIGHLIGHTS = [
@@ -29,6 +32,8 @@ interface OnboardingHeroProps {
 export function OnboardingHero({ userName }: OnboardingHeroProps) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mismatch, setMismatch] = useState<UploadResumeResponse | null>(null);
+  const [mismatchDismissed, setMismatchDismissed] = useState(false);
   const { mutate: uploadResume, isPending, isSuccess } = useUploadResume();
 
   const onDrop = useCallback(
@@ -41,8 +46,15 @@ export function OnboardingHero({ userName }: OnboardingHeroProps) {
         return;
       }
       setError(null);
+      setMismatch(null);
+      setMismatchDismissed(false);
       setFile(selected);
       uploadResume(selected, {
+        onSuccess: (data) => {
+          if (data.name_mismatch) {
+            setMismatch(data);
+          }
+        },
         onError: (err: unknown) => {
           const axiosError = err as { response?: { data?: { detail?: string } } };
           setError(
@@ -136,7 +148,37 @@ export function OnboardingHero({ userName }: OnboardingHeroProps) {
               {/* Drop zone / success state */}
               <div className="p-6">
                 {isSuccess ? (
-                  <SuccessState fileName={file?.name} />
+                  <>
+                    <SuccessState fileName={file?.name} />
+                    {/* Name mismatch warning — shown below success state */}
+                    {mismatch && !mismatchDismissed && (
+                      <div
+                        role="alert"
+                        className="mt-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 px-4 py-3"
+                      >
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                            Name mismatch detected
+                          </p>
+                          <p className="text-xs text-amber-800 dark:text-amber-300 mt-1 leading-relaxed">
+                            The name on your resume (
+                            <span className="font-medium">&ldquo;{mismatch.name_on_resume}&rdquo;</span>
+                            ) doesn&apos;t match your registered name (
+                            <span className="font-medium">&ldquo;{mismatch.registered_name}&rdquo;</span>
+                            ). Please make sure you&apos;re uploading your own resume — recruiters will see this discrepancy.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setMismatchDismissed(true)}
+                          className="shrink-0 text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-200 transition-colors"
+                          aria-label="Dismiss warning"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <>
                     <div
