@@ -88,7 +88,9 @@ def create_new_job(
         recruiter_id=current_user.id,
         title=data.title,
         company=data.company,
-        jd=data.jd
+        jd=data.jd,
+        apply_type=data.apply_type,
+        external_apply_url=data.external_apply_url
     )
 
     return {

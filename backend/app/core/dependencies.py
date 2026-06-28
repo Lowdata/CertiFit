@@ -2,6 +2,7 @@
 
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Request
 from typing import Optional
 
 from fastapi.security import HTTPBearer
@@ -35,15 +36,19 @@ security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
 
 def get_current_user_optional(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security_optional
     ),
     db: Session = Depends(get_db)
 ):
-    if not credentials:
+    token = request.cookies.get("access_token")
+    if not token and credentials:
+        token = credentials.credentials
+        
+    if not token:
         return None
         
-    token = credentials.credentials
     try:
         payload = decode_access_token(token)
     except Exception:
@@ -63,13 +68,22 @@ def get_current_user_optional(
     return user
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(
-        security
+        security_optional
     ),
     db: Session = Depends(get_db)
 ):
 
-    token = credentials.credentials
+    token = request.cookies.get("access_token")
+    if not token and credentials:
+        token = credentials.credentials
+        
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated"
+        )
 
     payload = decode_access_token(
         token

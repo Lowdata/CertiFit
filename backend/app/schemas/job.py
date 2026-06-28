@@ -12,6 +12,8 @@ class CreateJobRequest(BaseModel):
     title: str
     company: str
     jd: str
+    apply_type: str = "internal"
+    external_apply_url: str | None = None
 
 
 class JobSummaryResponse(BaseModel):
@@ -19,6 +21,8 @@ class JobSummaryResponse(BaseModel):
     title: str
     company: str
     status: str
+    apply_type: str = "internal"
+    external_apply_url: str | None = None
     created_at: datetime | None = None
 
 

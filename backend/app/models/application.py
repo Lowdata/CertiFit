@@ -59,6 +59,17 @@ class Application(Base):
         index=True
     )
 
+    is_external: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false"
+    )
+
+    external_source: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
     match_score: Mapped[float] = mapped_column(
         Float,
         nullable=False,

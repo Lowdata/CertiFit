@@ -10,6 +10,7 @@ import {
   Building2,
   FileText,
   CheckCircle2,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,8 @@ export default function NewJobPage() {
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [jd, setJd] = useState("");
+  const [applyType, setApplyType] = useState<"internal" | "external">("internal");
+  const [externalUrl, setExternalUrl] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,10 +38,21 @@ export default function NewJobPage() {
       setError("Job description must be at least 50 characters.");
       return;
     }
+    if (applyType === "external" && (!externalUrl || !externalUrl.startsWith("http"))) {
+      setError("Please provide a valid external URL starting with http:// or https://.");
+      return;
+    }
 
     try {
       setError("");
-      const result = await createJob({ title: title.trim(), company: company.trim(), jd: jd.trim() });
+      // @ts-ignore - Assuming useCreateRecruiterJob takes these new parameters
+      const result = await createJob({ 
+        title: title.trim(), 
+        company: company.trim(), 
+        jd: jd.trim(),
+        apply_type: applyType,
+        external_apply_url: applyType === "external" ? externalUrl.trim() : null
+      });
       router.push(`/recruiter/jobs/${result.id}`);
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { detail?: string } } };
@@ -130,6 +144,44 @@ export default function NewJobPage() {
                   required
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="applyType" className="text-sm font-medium">
+                  <Globe className="inline h-3.5 w-3.5 mr-1" />
+                  Application Type
+                </Label>
+                <select
+                  id="applyType"
+                  value={applyType}
+                  onChange={(e) => setApplyType(e.target.value as "internal" | "external")}
+                  className="flex h-11 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600 transition-colors"
+                  disabled={isPending}
+                >
+                  <option value="internal">Internal (Apply on CertiFit)</option>
+                  <option value="external">External (Greenhouse, Lever, etc)</option>
+                </select>
+              </div>
+              
+              {applyType === "external" && (
+                <div className="space-y-2">
+                  <Label htmlFor="externalUrl" className="text-sm font-medium">
+                    <Globe className="inline h-3.5 w-3.5 mr-1" />
+                    External URL
+                  </Label>
+                  <Input
+                    id="externalUrl"
+                    type="url"
+                    placeholder="https://jobs.lever.co/..."
+                    value={externalUrl}
+                    onChange={(e) => setExternalUrl(e.target.value)}
+                    className="h-11 bg-white dark:bg-slate-950"
+                    disabled={isPending}
+                    required={applyType === "external"}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -63,7 +63,7 @@ def test_candidate_can_store_linkedin_profile(client, db_session, monkeypatch):
     def fake_parse_linkedin_pdf(content: bytes):
         return {
             "source": "linkedin_pdf",
-            "name": "Ayush Pahuja",
+            "name": "candidate",
             "headline": "Full-Stack Blockchain Developer",
             "positions": [],
             "education": [],
@@ -85,7 +85,7 @@ def test_candidate_can_store_linkedin_profile(client, db_session, monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["id"] == candidate.id
-    assert response.json()["linkedin_profile"]["name"] == "Ayush Pahuja"
+    assert response.json()["linkedin_profile"]["name"] == "candidate"
 
     profile_response = client.get(
         "/candidates/me",

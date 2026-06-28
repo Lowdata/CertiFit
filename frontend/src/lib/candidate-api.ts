@@ -20,8 +20,9 @@ export interface LinkedinProfile {
 
 export interface CandidateProfileResponse {
   id: number;
-  resume_file_name: string;
+  resume_file_name: string | null;
   parsed_candidate: ParsedCandidate | null;
+  trust_score: number | null;
   github_profile: GithubProfile | null;
   linkedin_profile: LinkedinProfile | null;
   created_at: string;

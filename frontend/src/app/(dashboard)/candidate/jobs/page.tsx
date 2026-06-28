@@ -277,10 +277,19 @@ function JobDetailsModal({ job, onClose }: { job: Job; onClose: () => void }) {
           </Button>
           <Button 
             className="bg-blue-600 hover:bg-blue-700 text-white min-w-[140px] shadow-lg shadow-blue-600/20"
-            onClick={handleApply}
-            disabled={isApplying || hasApplied}
+            onClick={() => {
+              if (jobToRender.apply_type === "external" && jobToRender.external_apply_url) {
+                window.open(jobToRender.external_apply_url, "_blank");
+                // Optionally could mark as applied in our system
+              } else {
+                handleApply();
+              }
+            }}
+            disabled={(isApplying || hasApplied) && jobToRender.apply_type !== "external"}
           >
-            {isApplying ? (
+            {jobToRender.apply_type === "external" ? (
+              <><Briefcase className="mr-2 h-4 w-4" /> Apply Externally</>
+            ) : isApplying ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Applying...</>
             ) : hasApplied ? (
               <><CheckCircle2 className="mr-2 h-4 w-4" /> Applied</>

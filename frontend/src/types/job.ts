@@ -4,6 +4,8 @@ export interface Job {
   company: string;
   raw_jd: string;
   parsed_jd_json: ParsedJD | null;
+  apply_type: "internal" | "external";
+  external_apply_url: string | null;
   created_at: string;
 }
 
@@ -18,6 +20,8 @@ export interface CreateJobRequest {
   title: string;
   company: string;
   jd: string;
+  apply_type?: "internal" | "external";
+  external_apply_url?: string | null;
 }
 
 export interface JobListResponse {

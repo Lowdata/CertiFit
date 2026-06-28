@@ -15,7 +15,9 @@ def create_job(
     recruiter_id: int,
     title: str,
     company: str,
-    jd: str
+    jd: str,
+    apply_type: str = "internal",
+    external_apply_url: str | None = None
 ):
 
     try:
@@ -32,7 +34,9 @@ def create_job(
         title=title,
         company=company,
         raw_jd=jd,
-        parsed_jd_json=parsed_jd
+        parsed_jd_json=parsed_jd,
+        apply_type=apply_type,
+        external_apply_url=external_apply_url
     )
 
     try:

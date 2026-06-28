@@ -101,7 +101,7 @@ export const recruiterApi = {
     return res.data;
   },
 
-  createJob: async (data: { title: string; company: string; jd: string }) => {
+  createJob: async (data: { title: string; company: string; jd: string; apply_type?: "internal" | "external"; external_apply_url?: string | null }) => {
     const res = await api.post("/jobs", data);
     return res.data;
   },
