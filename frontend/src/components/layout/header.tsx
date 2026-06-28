@@ -56,8 +56,8 @@ const CANDIDATE_NAV = [
 
 // Recruiter nav links
 const RECRUITER_NAV = [
+  { href: "/recruiter", label: "Dashboard", icon: LayoutDashboard },
   { href: "/recruiter/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/recruiter", label: "Applications", icon: FileText },
 ];
 
 export function Header() {
@@ -166,14 +166,11 @@ export function Header() {
                   </Link>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem disabled className="text-muted-foreground">
-                  <span className="flex items-center gap-2 w-full">
-                    <FileText className="h-4 w-4" />
+                <DropdownMenuItem asChild>
+                  <Link href={user.user_type === 2 ? "/candidate/settings" : "/recruiter"} className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
                     Settings
-                    <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                      Soon
-                    </span>
-                  </span>
+                  </Link>
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />

@@ -17,7 +17,7 @@ export interface ParsedJD {
 export interface CreateJobRequest {
   title: string;
   company: string;
-  raw_jd: string;
+  jd: string;
 }
 
 export interface JobListResponse {
