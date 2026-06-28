@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { useQueryClient } from "@tanstack/react-query";
+import { CANDIDATE_QUERY_KEYS } from "@/hooks/use-candidate";
 import Link from "next/link";
 import {
   UploadCloud,
@@ -31,7 +33,9 @@ interface OnboardingHeroProps {
 export function OnboardingHero({ userName }: OnboardingHeroProps) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mismatchWarning, setMismatchWarning] = useState<string | null>(null);
   const { mutate: uploadResume, isPending, isSuccess } = useUploadResume();
+  const queryClient = useQueryClient();
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -46,6 +50,20 @@ export function OnboardingHero({ userName }: OnboardingHeroProps) {
       setFile(selected);
       uploadResume(selected, {
         onSuccess: (data) => {
+          if (data.name_mismatch) {
+            setMismatchWarning(
+              `Name mismatch detected! Found "${data.name_on_resume}" on your resume but your account name is "${data.registered_name}". The profile has been saved.`
+            );
+            // Delay refresh so the user can read the error
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.profile });
+              queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.normalized });
+            }, 5000);
+          } else {
+            // Immediate refresh
+            queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.profile });
+            queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.normalized });
+          }
         },
         onError: (err: unknown) => {
           const axiosError = err as { response?: { data?: { detail?: string } } };
@@ -140,9 +158,24 @@ export function OnboardingHero({ userName }: OnboardingHeroProps) {
               {/* Drop zone / success state */}
               <div className="p-6">
                 {isSuccess ? (
-                  <>
+                  <div className="space-y-4">
                     <SuccessState fileName={file?.name} />
-                  </>
+                    {mismatchWarning && (
+                      <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 animate-in slide-in-from-top-2">
+                        <div className="flex gap-3">
+                          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-500">
+                              Profile Verified (with warnings)
+                            </h4>
+                            <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                              {mismatchWarning}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <div

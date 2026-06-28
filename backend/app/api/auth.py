@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+import datetime
 
 from sqlalchemy.orm import Session
 
@@ -95,4 +96,30 @@ def me(
         "email": current_user.email,
         "user_type": current_user.user_type
     }
+
+@router.delete("/me")
+def delete_me(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    from app.models.candidate import Candidate
+    
+    try:
+        # 1. Delete associated candidate profile (if any)
+        candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+        if candidate:
+            db.delete(candidate)
+            
+        # 2. Soft-delete the user
+        timestamp = int(datetime.datetime.now().timestamp())
+        current_user.email = f"deleted_{timestamp}_{current_user.id}_{current_user.email}"
+        current_user.password_hash = "deleted"
+        current_user.user_type = -1
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete account")
+        
+    return {"message": "Account deleted successfully"}
 

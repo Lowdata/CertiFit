@@ -28,9 +28,7 @@ export function useUploadResume() {
   return useMutation({
     mutationFn: candidateApi.uploadResume,
     onSuccess: () => {
-      // Invalidate both profile endpoints to fetch fresh data
-      queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.profile });
-      queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.normalized });
+      // Invalidation is handled by the component to allow showing mismatch warnings
     },
   });
 }
@@ -55,6 +53,17 @@ export function useUploadLinkedin() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.profile });
       queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.normalized });
+    },
+  });
+}
+
+export function useDeleteCandidate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: candidateApi.deleteAccount,
+    onSuccess: () => {
+      queryClient.clear();
     },
   });
 }

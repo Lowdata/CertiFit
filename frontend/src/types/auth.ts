@@ -13,8 +13,10 @@ export interface RegisterRequest {
 export interface AuthResponse {
   access_token: string;
   token_type: string;
-  user_id: number;
-  name: string;
-  email: string;
-  user_type: 1 | 2;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    user_type: 1 | 2;
+  };
 }

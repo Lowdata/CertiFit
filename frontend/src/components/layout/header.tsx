@@ -13,6 +13,7 @@ import {
   User,
   LogOut,
   ChevronDown,
+  Settings,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -46,9 +47,11 @@ function getRoleLabel(userType: 1 | 2): string {
 
 // Candidate nav links
 const CANDIDATE_NAV = [
-  { href: "/candidate/profile", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/candidate", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/candidate/profile", label: "Profile", icon: User },
   { href: "/candidate/jobs", label: "Jobs", icon: Briefcase },
   { href: "/candidate/applications", label: "Applications", icon: FileText },
+  { href: "/candidate/settings", label: "Settings", icon: Settings },
 ];
 
 // Recruiter nav links

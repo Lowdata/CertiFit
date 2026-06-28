@@ -98,4 +98,15 @@ export const candidateApi = {
     });
     return response.data;
   },
+
+  deleteProfile: async (id: number) => {
+    const response = await api.delete(`/candidates/${id}`);
+    return response.data;
+  },
+
+  // Delete user account
+  deleteAccount: async () => {
+    const response = await api.delete("/auth/me");
+    return response.data;
+  }
 };
