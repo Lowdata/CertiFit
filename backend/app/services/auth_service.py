@@ -33,6 +33,19 @@ def register_user(
             "Email already exists"
         )
 
+    # Check if email was soft-deleted (flagged)
+    deleted = (
+        db.query(User)
+        .filter(User.email.like(f"deleted_%_{email}"))
+        .filter(User.user_type == -1)
+        .first()
+    )
+
+    if deleted:
+        raise ValueError(
+            "This email has been permanently deleted and cannot be reused. Please use a different email address."
+        )
+
     user = User(
         name=name,
         email=email,
