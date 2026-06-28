@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useJobs, useApplyToJob } from "@/hooks/useJobs";
+import { useJobs, useJob, useApplyToJob } from "@/hooks/useJobs";
 import { Job } from "@/types/job";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -171,11 +171,14 @@ export default function CandidateJobsPage() {
 }
 
 function JobDetailsModal({ job, onClose }: { job: Job; onClose: () => void }) {
+  const { data: fullJob, isLoading: isLoadingFullJob } = useJob(job.id);
   const { mutate: apply, isPending: isApplying, isSuccess: hasApplied, isError: applyError, error: applyErrorObj } = useApplyToJob();
 
   const handleApply = () => {
     apply(job.id);
   };
+
+  const jobToRender = fullJob || job;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
@@ -214,47 +217,58 @@ function JobDetailsModal({ job, onClose }: { job: Job; onClose: () => void }) {
             </div>
           )}
 
-          {job.parsed_jd_json ? (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Seniority / Level</h3>
-                <Badge variant="outline" className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm font-medium py-1 px-3">
-                  {job.parsed_jd_json.seniority}
-                </Badge>
-              </div>
+          {isLoadingFullJob ? (
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-1/3" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-8 w-1/4 mt-6" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ) : (
+            <>
+              {jobToRender.parsed_jd_json ? (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Seniority / Level</h3>
+                    <Badge variant="outline" className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm font-medium py-1 px-3">
+                      {jobToRender.parsed_jd_json.seniority}
+                    </Badge>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Required Skills</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {jobToRender.parsed_jd_json.required_skills.map((skill, i) => (
+                        <Badge key={i} variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-none font-medium py-1 px-3">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {jobToRender.parsed_jd_json.tech_stack.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Tech Stack</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {jobToRender.parsed_jd_json.tech_stack.map((tech, i) => (
+                          <Badge key={i} variant="outline" className="text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 font-medium py-1 px-3">
+                            {tech}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
               
               <div>
-                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Required Skills</h3>
-                <div className="flex flex-wrap gap-2">
-                  {job.parsed_jd_json.required_skills.map((skill, i) => (
-                    <Badge key={i} variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-none font-medium py-1 px-3">
-                      {skill}
-                    </Badge>
-                  ))}
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 border-b border-border/50 pb-2">Job Description</h3>
+                <div className="text-sm">
+                  <FormattedJD text={jobToRender.raw_jd} />
                 </div>
               </div>
-
-              {job.parsed_jd_json.tech_stack.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Tech Stack</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {job.parsed_jd_json.tech_stack.map((tech, i) => (
-                      <Badge key={i} variant="outline" className="text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 font-medium py-1 px-3">
-                        {tech}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
-          
-          <div>
-            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Job Description</h3>
-            <div className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap bg-slate-50 dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800/50 leading-relaxed">
-              {job.raw_jd}
-            </div>
-          </div>
+            </>
+          )}
         </CardContent>
         
         <CardFooter className="border-t border-border/50 p-5 bg-slate-50/50 dark:bg-slate-900/50 shrink-0 justify-end gap-3 rounded-b-xl">
@@ -276,6 +290,48 @@ function JobDetailsModal({ job, onClose }: { job: Job; onClose: () => void }) {
           </Button>
         </CardFooter>
       </Card>
+    </div>
+  );
+}
+
+function FormattedJD({ text }: { text: string }) {
+  if (!text) return null;
+  
+  // Split by common JD headers to add structure to dense text
+  const parts = text.split(/(About Us:|Role:|Responsibilities:|Requirements:|Qualifications:|Nice To Have:|Benefits:|What You'll Do:|Who You Are:|What We're Looking For:|Why Join Us:)/gi);
+  
+  return (
+    <div className="space-y-3 text-[14.5px] leading-relaxed text-slate-700 dark:text-slate-300">
+      {parts.map((part, i) => {
+        if (!part.trim()) return null;
+        
+        if (/(About Us:|Role:|Responsibilities:|Requirements:|Qualifications:|Nice To Have:|Benefits:|What You'll Do:|Who You Are:|What We're Looking For:|Why Join Us:)/i.test(part)) {
+          return (
+            <h4 key={i} className="font-bold text-slate-900 dark:text-white mt-6 mb-1 text-base tracking-tight">
+              {part.replace(/:$/, '')}
+            </h4>
+          );
+        }
+        
+        // Handle inner bullet points if they exist (dash or dot)
+        const lines = part.split('\n');
+        return (
+          <div key={i} className="space-y-2">
+            {lines.map((line, j) => {
+              if (!line.trim()) return null;
+              if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
+                return (
+                  <div key={j} className="flex gap-2 ml-1">
+                    <span className="text-slate-400">•</span>
+                    <span>{line.trim().substring(2)}</span>
+                  </div>
+                );
+              }
+              return <p key={j}>{line.trim()}</p>;
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
