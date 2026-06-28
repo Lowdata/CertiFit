@@ -56,6 +56,7 @@ export function ProfileDisplay() {
 
   const [githubUsername, setGithubUsername] = useState("");
   const [githubError, setGithubError] = useState("");
+  const [linkedinError, setLinkedinError] = useState<string | null>(null);
   const linkedinInputRef = useRef<HTMLInputElement>(null);
 
   if (isLoadingRaw || isLoadingNormalized) {
@@ -110,7 +111,15 @@ export function ProfileDisplay() {
   const handleLinkedinFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    uploadLinkedin(file);
+    setLinkedinError(null);
+    uploadLinkedin(file, {
+      onError: (err: unknown) => {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        setLinkedinError(
+          axiosError?.response?.data?.detail ?? "Failed to upload LinkedIn PDF"
+        );
+      },
+    });
     if (linkedinInputRef.current) linkedinInputRef.current.value = "";
   };
 
@@ -329,6 +338,14 @@ export function ProfileDisplay() {
             className="hidden"
             onChange={handleLinkedinFileChange}
           />
+          {linkedinError && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="text-sm font-medium leading-tight">
+                {linkedinError}
+              </p>
+            </div>
+          )}
           {hasLinkedin ? (
             <div className="space-y-4">
               <div className="flex items-center gap-3">

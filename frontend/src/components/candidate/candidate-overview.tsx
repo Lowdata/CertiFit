@@ -11,6 +11,7 @@ import {
   Star,
   UploadCloud,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -37,11 +38,20 @@ export function CandidateOverview() {
   const { data: normalizedResponse, isLoading: isLoadingNormalized } = useCandidateNormalizedProfile();
   const { mutate: uploadResume, isPending: isUploadingResume } = useUploadResume();
   const resumeInputRef = React.useRef<HTMLInputElement>(null);
+  const [resumeError, setResumeError] = React.useState<string | null>(null);
 
   const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      uploadResume(file);
+      setResumeError(null);
+      uploadResume(file, {
+        onError: (err: unknown) => {
+          const axiosError = err as { response?: { data?: { detail?: string } } };
+          setResumeError(
+            axiosError?.response?.data?.detail ?? "Failed to upload resume"
+          );
+        },
+      });
     }
     if (resumeInputRef.current) resumeInputRef.current.value = "";
   };
@@ -202,6 +212,14 @@ export function CandidateOverview() {
             </button>
           </div>
         </div>
+        {resumeError && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-sm font-medium leading-tight">
+              {resumeError}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

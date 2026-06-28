@@ -134,6 +134,7 @@ async def upload_candidate(
     except ValueError as exc:
         if Path(file_path).exists():
             Path(file_path).unlink()
+        logger.error("Resume upload failed: %s", str(exc))
         raise HTTPException(
             status_code=400,
             detail=str(exc),
@@ -293,6 +294,7 @@ async def upload_linkedin_profile(
             expected_name=current_user.name
         )
     except ValueError as exc:
+        logger.error("LinkedIn upload failed: %s", str(exc))
         raise HTTPException(
             status_code=400,
             detail=str(exc)
