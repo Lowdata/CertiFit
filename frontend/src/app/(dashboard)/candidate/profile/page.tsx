@@ -5,7 +5,7 @@ import { useCandidateProfile } from "@/hooks/use-candidate";
 import { useAuthStore } from "@/store/authStore";
 import { OnboardingHero } from "@/components/candidate/onboarding-hero";
 import { CandidateOverview } from "@/components/candidate/candidate-overview";
-import { ProfileCompleteness } from "@/components/candidate/profile-completeness";
+import { VerificationProgress } from "@/components/candidate/verification-progress";
 import { ProfileDisplay } from "@/components/candidate/profile-display";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -17,8 +17,6 @@ export default function CandidateProfilePage() {
   const githubSectionRef = useRef<HTMLDivElement>(null);
 
   const hasResume = !!profileResponse?.parsed_candidate;
-  const hasGithub = !!profileResponse?.github_profile;
-  const hasLinkedin = !!profileResponse?.linkedin_profile;
 
   const handleConnectGithub = () => {
     githubSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -112,10 +110,8 @@ export default function CandidateProfilePage() {
             {/* Sidebar */}
             <div className="lg:col-span-1">
               <div className="sticky top-24">
-                <ProfileCompleteness
-                  hasResume={hasResume}
-                  hasGithub={hasGithub}
-                  hasLinkedin={hasLinkedin}
+                <VerificationProgress
+                  profile={profileResponse}
                   onConnectGithub={handleConnectGithub}
                 />
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCandidateProfile, useCandidateNormalizedProfile } from "@/hooks/use-candidate";
+import React from "react";
+import { useCandidateProfile, useCandidateNormalizedProfile, useUploadResume } from "@/hooks/use-candidate";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -8,6 +9,8 @@ import {
   GraduationCap,
   CalendarDays,
   Star,
+  UploadCloud,
+  Loader2,
 } from "lucide-react";
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -32,6 +35,16 @@ function formatUploadDate(iso: string | null | undefined): string {
 export function CandidateOverview() {
   const { data: profileResponse, isLoading: isLoadingRaw } = useCandidateProfile();
   const { data: normalizedResponse, isLoading: isLoadingNormalized } = useCandidateNormalizedProfile();
+  const { mutate: uploadResume, isPending: isUploadingResume } = useUploadResume();
+  const resumeInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadResume(file);
+    }
+    if (resumeInputRef.current) resumeInputRef.current.value = "";
+  };
 
   if (isLoadingRaw || isLoadingNormalized) {
     return (
@@ -155,9 +168,39 @@ export function CandidateOverview() {
         )}
 
         {/* Resume uploaded info */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1 border-t border-border">
-          <CalendarDays className="h-3.5 w-3.5" />
-          Resume last updated {formatUploadDate(uploadedAt)}
+        <div className="flex items-center justify-between pt-1 border-t border-border">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Resume last updated {formatUploadDate(uploadedAt)}
+          </div>
+          
+          <div>
+            <input
+              ref={resumeInputRef}
+              type="file"
+              accept=".pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={handleResumeUpload}
+              aria-label="Update Resume"
+            />
+            <button
+              onClick={() => resumeInputRef.current?.click()}
+              disabled={isUploadingResume}
+              className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 transition-colors"
+            >
+              {isUploadingResume ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  Update Resume
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

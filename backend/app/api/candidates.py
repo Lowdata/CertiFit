@@ -50,49 +50,7 @@ DOCX_SIGNATURE = b"PK"
 logger = logging.getLogger(__name__)
 
 
-def _normalize_name(name: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace for loose comparison."""
-    import re
-    name = name.lower().strip()
-    name = re.sub(r"[^a-z\s]", "", name)   # remove punctuation / accents (basic)
-    name = re.sub(r"\s+", " ", name)
-    return name
 
-
-def _names_match(registered: str, from_resume: str) -> bool:
-    """
-    Returns True if the names are considered a match.
-
-    Strategy:
-      1. Exact normalised match (e.g. "Ayush Pahuja" == "ayush pahuja")
-      2. All tokens of the shorter name appear in the longer name
-         (handles middle-name / suffix differences, e.g. "John Smith" matches
-         "John Michael Smith Jr").
-    """
-    if not registered or not from_resume:
-        return True   # can't compare — don't flag
-
-    reg_norm  = _normalize_name(registered)
-    res_norm  = _normalize_name(from_resume)
-
-    if reg_norm == res_norm:
-        return True
-
-    reg_tokens = set(reg_norm.split())
-    res_tokens = set(res_norm.split())
-
-    # If every word in the registered name is present in the resume name
-    # (or vice-versa) treat it as a match.
-    if reg_tokens <= res_tokens or res_tokens <= reg_tokens:
-        return True
-
-    # Check for at least one surname token in common (last word heuristic)
-    reg_last = reg_norm.split()[-1]
-    res_last = res_norm.split()[-1]
-    if reg_last == res_last:
-        return True
-
-    return False
 
 
 def _safe_resume_extension(filename: str | None) -> str:
@@ -164,7 +122,8 @@ async def upload_candidate(
             db=db,
             user_id=current_user.id,
             file_path=file_path,
-            file_name=stored_file_name
+            file_name=stored_file_name,
+            expected_name=current_user.name
         )
 
     except HTTPException:
@@ -195,30 +154,12 @@ async def upload_candidate(
     except Exception:
         logger.exception("Intelligence rebuild failed after resume upload")
 
-    # ── Name mismatch check ──────────────────────────────────────────────────
-    # Compare the name extracted from the resume against the registered name.
-    name_mismatch = False
-    name_on_resume: str | None = None
-
-    parsed = candidate.parsed_candidate_json or {}
-    name_on_resume = parsed.get("name") or None
-
-    if name_on_resume:
-        name_mismatch = not _names_match(current_user.name, name_on_resume)
-        if name_mismatch:
-            logger.warning(
-                "Name mismatch: registered=%r resume=%r user_id=%s",
-                current_user.name,
-                name_on_resume,
-                current_user.id,
-            )
-
     return {
         "id": candidate.id,
         "resume_file_name": candidate.resume_file_name,
-        "name_mismatch": name_mismatch,
-        "name_on_resume": name_on_resume if name_mismatch else None,
-        "registered_name": current_user.name if name_mismatch else None,
+        "name_mismatch": False,
+        "name_on_resume": None,
+        "registered_name": None,
     }
 
 
@@ -344,11 +285,18 @@ async def upload_linkedin_profile(
             detail=str(exc)
         ) from exc
 
-    candidate = update_candidate_linkedin_profile(
-        db=db,
-        user_id=current_user.id,
-        linkedin_profile=linkedin_profile
-    )
+    try:
+        candidate = update_candidate_linkedin_profile(
+            db=db,
+            user_id=current_user.id,
+            linkedin_profile=linkedin_profile,
+            expected_name=current_user.name
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
 
     # Rebuild intelligence after new LinkedIn data
     try:

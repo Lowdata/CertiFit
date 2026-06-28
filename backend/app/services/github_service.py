@@ -8,8 +8,7 @@ logger = logging.getLogger(__name__)
 
 GITHUB_API_BASE_URL = "https://api.github.com"
 REQUEST_TIMEOUT_SECONDS = 8
-MAX_REPOS = 8
-MAX_LANGUAGE_REPOS = 5
+MAX_REPOS = 30
 MAX_EVENTS = 10
 
 
@@ -149,18 +148,15 @@ def analyze_github_profile(identifier: str) -> dict:
     repo_summaries = []
     language_totals: dict[str, int] = {}
 
-    for repo in repos[:MAX_LANGUAGE_REPOS]:
-        full_name = repo.get("full_name")
-        languages = {}
-        if full_name:
-            languages = _request_json(f"/repos/{full_name}/languages")
-            for language, bytes_count in languages.items():
-                language_totals[language] = language_totals.get(language, 0) + bytes_count
+    for repo in repos:
+        primary_lang = repo.get("language")
+        if primary_lang:
+            language_totals[primary_lang] = language_totals.get(primary_lang, 0) + 1
 
         repo_summaries.append(
             _summarize_repo(
                 repo=repo,
-                languages=languages,
+                languages={primary_lang: 1} if primary_lang else {},
             )
         )
 
