@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState, useEffect, startTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/authStore";
 import {
   Sparkles,
   Search,
@@ -19,6 +21,19 @@ export default function Home() {
   useEffect(() => {
     startTransition(() => setMounted(true));
   }, []);
+
+  const { token, user } = useAuthStore();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (mounted && token && user) {
+      if (user.user_type === 1) {
+        router.replace("/recruiter");
+      } else {
+        router.replace("/candidate");
+      }
+    }
+  }, [mounted, token, user, router]);
 
   const features = [
     {

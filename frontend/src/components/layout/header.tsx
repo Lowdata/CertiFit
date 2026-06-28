@@ -126,7 +126,7 @@ export function Header() {
                 >
                   <Avatar className="h-7 w-7">
                     <AvatarFallback className="text-xs font-semibold bg-blue-600 text-white">
-                      {initials}
+                      {initials || <User className="h-4 w-4" />}
                     </AvatarFallback>
                   </Avatar>
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -139,7 +139,7 @@ export function Header() {
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9 shrink-0">
                       <AvatarFallback className="text-sm font-semibold bg-blue-600 text-white">
-                        {initials}
+                        {initials || <User className="h-5 w-5" />}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
@@ -208,7 +208,7 @@ export function Header() {
             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border">
               <Avatar className="h-10 w-10 shrink-0">
                 <AvatarFallback className="text-sm font-semibold bg-blue-600 text-white">
-                  {initials}
+                  {initials || <User className="h-5 w-5" />}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">

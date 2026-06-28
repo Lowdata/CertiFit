@@ -19,3 +19,10 @@ export interface CreateJobRequest {
   company: string;
   raw_jd: string;
 }
+
+export interface JobListResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  data: Job[];
+}

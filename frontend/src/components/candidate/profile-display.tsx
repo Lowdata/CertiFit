@@ -9,6 +9,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useRef } from "react";
@@ -197,14 +198,13 @@ export function ProfileDisplay() {
           {hasGithub ? (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-border shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                <Avatar className="w-12 h-12 rounded-full border border-border bg-slate-100 dark:bg-slate-800 shrink-0">
+                  <AvatarImage
                     src={githubData.profile?.avatar_url || undefined}
                     alt={`${githubData.profile?.login || "User"} GitHub avatar`}
-                    className="w-full h-full object-cover"
                   />
-                </div>
+                  <AvatarFallback className="text-muted-foreground font-semibold">GH</AvatarFallback>
+                </Avatar>
                 <div>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
