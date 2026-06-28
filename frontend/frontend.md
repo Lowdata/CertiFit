@@ -20,21 +20,22 @@ CertiFit is evolving into an **AI Hiring Intelligence Platform**.
 
 ## Phased Development Roadmap
 
-**Current Phase**: **Phase 1 (Dashboards, Company Profiles, and Core ATS Polish)**
-**Next Phase**: **Phase 2 (AI Pre-Interview Engine & Live Video)**
+**Current Phase**: **Phase 2 (AI Pre-Interview Engine & Advanced Matching)**
+**Previous Phase**: **Phase 1 (Dashboards, Company Profiles, and Core ATS Polish) - COMPLETED**
 
-### Phase 1: ATS Core & Dashboards (In Progress)
-- **Candidate Dashboard**: Profile completion (Resume, GitHub, LinkedIn), Job browsing, Application tracking.
+### Phase 1: ATS Core & Dashboards (COMPLETED)
+- **Candidate Dashboard**: Profile completion (Resume, GitHub, LinkedIn), Job browsing, Application tracking, Trust Score visualization.
 - **Recruiter Dashboard**: Analytics (Open Jobs, Applications, Candidates, Interviews Today, Avg Fit Score, Pipeline).
 - **Company Profile**: Logo, Website, Industry, Size. Jobs inherit Company branding.
 - **Job Management**: Internal vs External Apply (LinkedIn, Greenhouse, etc).
-- **Quality & Security**: Comprehensive testing and vulnerability patching (SEC-001, SEC-003).
+- **Screening Questions**: Custom Yes/No, Text, and Link questions during job creation and application.
+- **Quality & Security**: Migrated to secure `HttpOnly` cookie auth.
 
-### Phase 2: AI Pre-Interview Engine (Upcoming)
+### Phase 2: AI Pre-Interview Engine & Advanced Matching (Current)
 - **Live Video Interview**: Browser camera/mic recording.
-- **Speech-to-Text**: Real-time or async transcription.
-- **AI Evaluation**: Candidate answers technical/behavioral questions generated dynamically.
-- **Recruiter Review UI**: Video player with timeline-synced AI notes (e.g. 02:45 Problem solving).
+- **Candidate AI Screening**: Interview Copilot where candidates answer initial questions.
+- **Match Matrix Backend**: LLM processing of candidates' skills and screening answers.
+- **Recruiter Review UI**: Video player with timeline-synced AI notes.
 
 ### Phase 3: Analytics & Collaboration
 - **Team Hiring**: Permissions for Owner, Admin, Recruiter, Hiring Manager.
@@ -52,7 +53,7 @@ CertiFit is evolving into an **AI Hiring Intelligence Platform**.
 
 **Security Mandate**:
 - Both frontend and backend must be audited for security vulnerabilities on every phase.
-- Global rate limiting, auth token hardening (e.g., HttpOnly cookies), and upload sanitization must be strictly enforced.
+- Global rate limiting, auth token hardening (`HttpOnly` cookies), and upload sanitization must be strictly enforced.
 
 ## Core Component Architecture
 
@@ -61,5 +62,4 @@ CertiFit is evolving into an **AI Hiring Intelligence Platform**.
 - `src/components/interview`: (Future) UI for WebRTC/MediaRecorder for the AI interview.
 
 ## Known Limitations & Issues
-- Authentication requires migrating tokens from `localStorage` to `HttpOnly` cookies (SEC-001).
-- GitHub avatar loading requires adding domains to `next.config.ts` (SEC-003).
+- None currently flagged.

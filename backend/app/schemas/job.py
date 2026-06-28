@@ -14,6 +14,7 @@ class CreateJobRequest(BaseModel):
     jd: str
     apply_type: str = "internal"
     external_apply_url: str | None = None
+    screening_questions: list[dict[str, Any]] = []
 
 
 class JobSummaryResponse(BaseModel):
@@ -39,6 +40,7 @@ class UpdateJobStatusRequest(BaseModel):
 class JobDetailResponse(JobSummaryResponse):
     raw_jd: str
     parsed_jd: dict[str, Any]
+    screening_questions: list[dict[str, Any]] = []
     updated_at: datetime | None = None
 
 

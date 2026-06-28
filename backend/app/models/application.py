@@ -118,6 +118,13 @@ class Application(Base):
         default=dict
     )
 
+    screening_answers: Mapped[dict] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=dict,
+        server_default="{}"
+    )
+
     applied_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()

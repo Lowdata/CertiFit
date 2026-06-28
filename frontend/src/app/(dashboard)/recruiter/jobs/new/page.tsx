@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateRecruiterJob } from "@/hooks/useRecruiter";
+import { ScreeningQuestion } from "@/types/job";
 import {
   ArrowLeft,
   Loader2,
@@ -26,7 +27,26 @@ export default function NewJobPage() {
   const [jd, setJd] = useState("");
   const [applyType, setApplyType] = useState<"internal" | "external">("internal");
   const [externalUrl, setExternalUrl] = useState("");
+  const [questions, setQuestions] = useState<ScreeningQuestion[]>([]);
   const [error, setError] = useState("");
+
+  const addQuestion = (type: "yes_no" | "text" | "link") => {
+    const newQuestion: ScreeningQuestion = {
+      id: `q_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      type,
+      question: "",
+      required: true
+    };
+    setQuestions([...questions, newQuestion]);
+  };
+
+  const removeQuestion = (id: string) => {
+    setQuestions(questions.filter((q) => q.id !== id));
+  };
+
+  const updateQuestion = (id: string, updates: Partial<ScreeningQuestion>) => {
+    setQuestions(questions.map((q) => (q.id === id ? { ...q, ...updates } : q)));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +71,8 @@ export default function NewJobPage() {
         company: company.trim(), 
         jd: jd.trim(),
         apply_type: applyType,
-        external_apply_url: applyType === "external" ? externalUrl.trim() : null
+        external_apply_url: applyType === "external" ? externalUrl.trim() : null,
+        screening_questions: questions.filter(q => q.question.trim().length > 0)
       });
       router.push(`/recruiter/jobs/${result.id}`);
     } catch (err: unknown) {
@@ -201,6 +222,60 @@ export default function NewJobPage() {
               <p className="text-xs text-muted-foreground">
                 {jd.length} characters · minimum 50
               </p>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">
+                  <FileText className="inline h-3.5 w-3.5 mr-1" />
+                  Screening Questions (Optional)
+                </Label>
+              </div>
+
+              {questions.length > 0 && (
+                <div className="space-y-3">
+                  {questions.map((q, idx) => (
+                    <div key={q.id} className="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-border">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase text-muted-foreground">Question {idx + 1} - {q.type.replace('_', '/')}</span>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => removeQuestion(q.id)}>
+                          Remove
+                        </Button>
+                      </div>
+                      <Input
+                        placeholder="Type your question here..."
+                        value={q.question}
+                        onChange={(e) => updateQuestion(q.id, { question: e.target.value })}
+                        className="bg-white dark:bg-slate-950 h-9"
+                        disabled={isPending}
+                        required
+                      />
+                      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={q.required}
+                          onChange={(e) => updateQuestion(q.id, { required: e.target.checked })}
+                          className="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-600"
+                          disabled={isPending}
+                        />
+                        Required
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => addQuestion("yes_no")} disabled={isPending}>
+                  + Yes/No
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => addQuestion("text")} disabled={isPending}>
+                  + Text
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => addQuestion("link")} disabled={isPending}>
+                  + Link
+                </Button>
+              </div>
             </div>
 
             {error && (

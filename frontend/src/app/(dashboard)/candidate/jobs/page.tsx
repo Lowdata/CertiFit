@@ -173,12 +173,32 @@ export default function CandidateJobsPage() {
 function JobDetailsModal({ job, onClose }: { job: Job; onClose: () => void }) {
   const { data: fullJob, isLoading: isLoadingFullJob } = useJob(job.id);
   const { mutate: apply, isPending: isApplying, isSuccess: hasApplied, isError: applyError, error: applyErrorObj } = useApplyToJob();
-
-  const handleApply = () => {
-    apply(job.id);
-  };
+  
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [showQuestions, setShowQuestions] = useState(false);
 
   const jobToRender = fullJob || job;
+
+  const handleApply = () => {
+    if (jobToRender.screening_questions && jobToRender.screening_questions.length > 0 && !showQuestions) {
+      setShowQuestions(true);
+      return;
+    }
+
+    // Validate required answers
+    if (jobToRender.screening_questions && showQuestions) {
+      for (const q of jobToRender.screening_questions) {
+        if (q.required && !answers[q.id]?.trim()) {
+          alert(`Please answer the required question: ${q.question}`);
+          return;
+        }
+      }
+    }
+
+    // Pass answers to the mutate function
+    // @ts-ignore
+    apply({ jobId: job.id, screening_answers: answers });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
@@ -267,6 +287,59 @@ function JobDetailsModal({ job, onClose }: { job: Job; onClose: () => void }) {
                   <FormattedJD text={jobToRender.raw_jd} />
                 </div>
               </div>
+
+              {showQuestions && jobToRender.screening_questions && jobToRender.screening_questions.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-border space-y-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Screening Questions</h3>
+                    <p className="text-sm text-slate-500 mt-1">Please answer these questions from the recruiter to continue.</p>
+                  </div>
+                  
+                  {jobToRender.screening_questions.map((q) => (
+                    <div key={q.id} className="space-y-2">
+                      <label className="text-sm font-medium text-slate-900 dark:text-slate-200">
+                        {q.question} {q.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {q.type === 'yes_no' ? (
+                        <div className="space-y-3">
+                          <select
+                            className="flex h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
+                            value={answers[q.id]?.startsWith('Yes') ? 'Yes' : (answers[q.id]?.startsWith('No') ? 'No' : '')}
+                            onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
+                          >
+                            <option value="" disabled>Select an option</option>
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                          </select>
+                          {answers[q.id]?.startsWith('No') && (
+                            <Input
+                              placeholder="Optional reason for No..."
+                              value={answers[q.id]?.substring(4) || ''}
+                              onChange={(e) => setAnswers({ ...answers, [q.id]: `No, ${e.target.value}` })}
+                              className="h-9 bg-slate-50 dark:bg-slate-900"
+                            />
+                          )}
+                        </div>
+                      ) : q.type === 'text' ? (
+                        <textarea
+                          className="flex w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600 min-h-[100px]"
+                          placeholder="Your answer..."
+                          value={answers[q.id] || ''}
+                          onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
+                        />
+                      ) : (
+                        <Input
+                          type="url"
+                          placeholder="https://..."
+                          value={answers[q.id] || ''}
+                          onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
+                          className="bg-white dark:bg-slate-950"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </CardContent>

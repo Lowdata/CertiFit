@@ -76,6 +76,13 @@ class Job(Base):
         default=dict
     )
 
+    screening_questions: Mapped[list] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=list,
+        server_default="[]"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()

@@ -66,6 +66,7 @@ Out of scope for current MVP unless explicitly requested:
 | Interview copilot | ✅ Implemented | `interview_service.py` + `POST /applications/{id}/interview-plan`. Trust concerns → verification questions. |
 | Candidate report | ✅ Implemented | `GET /applications/{id}/candidate-report` — demo endpoint returns everything in one call. |
 | Gemini reliability | ✅ Implemented | `safe_gemini_call` in `llm_validation.py` — handles timeout/empty/invalid-JSON/safety-block/missing-keys. |
+| Screening Questions| ✅ Implemented | Added Yes/No, Text, Link screening questions that dynamically feed into AI fit scoring via BackgroundTasks. |
 
 Backend completion estimate: **100% for intelligence layer MVP.**
 

@@ -31,7 +31,7 @@ export default function RecruiterDashboardPage() {
 
   const fetchStats = async () => {
     try {
-      const res = await api.get("/analytics/recruiter/dashboard");
+      const res = await api.get("/analytics/dashboard");
       setStats(res.data);
     } catch (err) {
       console.error("Failed to load dashboard stats", err);
