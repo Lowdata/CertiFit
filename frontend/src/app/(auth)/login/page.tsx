@@ -21,8 +21,9 @@ export default function LoginPage() {
     setError("");
     try {
       await login({ email, password });
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Invalid credentials");
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError?.response?.data?.detail || "Invalid credentials");
     } finally {
       setLoading(false);
     }
@@ -87,7 +88,7 @@ export default function LoginPage() {
         
         <div className="pt-4 text-center">
           <p className="text-sm text-slate-500 dark:text-slate-400 transition-colors">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-medium transition-colors">
               Create an account
             </Link>

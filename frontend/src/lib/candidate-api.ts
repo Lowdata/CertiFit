@@ -1,12 +1,29 @@
 import api from "./api";
 import { ParsedCandidate, NormalizedProfile } from "@/types/candidate";
 
+export interface GithubProfile {
+  login: string;
+  avatar_url: string;
+  public_repos: number;
+  name?: string | null;
+  bio?: string | null;
+  [key: string]: unknown;
+}
+
+export interface LinkedinProfile {
+  headline?: string | null;
+  positions?: unknown[];
+  education?: unknown[];
+  certifications?: unknown[];
+  [key: string]: unknown;
+}
+
 export interface CandidateProfileResponse {
   id: number;
   resume_file_name: string;
   parsed_candidate: ParsedCandidate | null;
-  github_profile: any | null;
-  linkedin_profile: any | null;
+  github_profile: GithubProfile | null;
+  linkedin_profile: LinkedinProfile | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,5 +77,17 @@ export const candidateApi = {
   rebuildProfile: async () => {
     const response = await api.post("/candidates/me/profile/rebuild");
     return response.data;
-  }
+  },
+
+  // Upload LinkedIn PDF
+  uploadLinkedin: async (file: File) => {
+    const formData = new FormData();
+    formData.append("profile", file);
+    const response = await api.post("/candidates/linkedin", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
 };

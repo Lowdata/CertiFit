@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 import {
   Sparkles,
   Search,
   Users,
-  BarChart3,
   ArrowRight,
-  Menu,
-  X,
   CheckCircle2,
   ShieldCheck,
   BrainCircuit,
@@ -17,11 +14,10 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    startTransition(() => setMounted(true));
   }, []);
 
   const features = [
@@ -226,7 +222,7 @@ export default function Home() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 auto-rows-[minmax(200px,auto)]">
-            {features.map((feature, i) => (
+            {features.map((feature, _i) => (
               <div
                 key={feature.title}
                 className={`group relative overflow-hidden rounded-3xl border border-slate-200/60 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm p-8 shadow-sm hover:shadow-xl dark:hover:shadow-blue-900/10 transition-all duration-500 hover:-translate-y-1 ${feature.colSpan}`}
@@ -267,7 +263,7 @@ export default function Home() {
             {/* Connecting line */}
             <div className="hidden md:block absolute top-12 left-[10%] right-[10%] h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent" />
             
-            {steps.map((step, i) => (
+            {steps.map((step, _i) => (
               <div key={step.number} className="relative text-center px-4">
                 <div className="relative z-10 mx-auto flex h-24 w-24 items-center justify-center rounded-full border-8 border-[#FAFAFA] dark:border-slate-950 bg-slate-100 dark:bg-slate-900 shadow-xl mb-8 group hover:scale-110 transition-transform duration-300">
                   <span className="text-2xl font-black text-slate-400 dark:text-slate-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">

@@ -23,8 +23,9 @@ export default function RegisterPage() {
     setError("");
     try {
       await register({ name, email, password, user_type: userType });
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Registration failed. Please try again.");
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError?.response?.data?.detail || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }

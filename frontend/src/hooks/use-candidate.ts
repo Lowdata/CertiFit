@@ -46,3 +46,15 @@ export function useUploadGithub() {
     },
   });
 }
+
+export function useUploadLinkedin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: candidateApi.uploadLinkedin,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.profile });
+      queryClient.invalidateQueries({ queryKey: CANDIDATE_QUERY_KEYS.normalized });
+    },
+  });
+}
