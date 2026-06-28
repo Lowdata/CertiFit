@@ -12,6 +12,9 @@ import {
   Search,
   Calendar,
   Building2,
+  Activity,
+  PauseCircle,
+  Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +42,7 @@ export default function RecruiterJobsPage() {
   const handleDelete = (id: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this job? This cannot be undone.")) return;
+    if (!confirm("Are you sure you want to close this job? It will no longer accept applications.")) return;
     setDeletingId(id);
     deleteJob(id, {
       onSettled: () => setDeletingId(null),
@@ -113,10 +116,21 @@ export default function RecruiterJobsPage() {
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/40 shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/60 transition-colors">
                       <Briefcase className="h-5 w-5 text-blue-600" />
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-foreground truncate group-hover:text-blue-600 transition-colors">
-                        {job.title}
-                      </h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center">
+                        <h3 className="font-semibold text-foreground truncate group-hover:text-blue-600 transition-colors">
+                          {job.title}
+                        </h3>
+                        {job.status && (
+                          <span className={`ml-3 px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wider shrink-0 ${
+                            job.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" :
+                            job.status === "paused" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" :
+                            "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                          }`}>
+                            {job.status}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="flex items-center gap-1 text-sm text-muted-foreground">
                           <Building2 className="h-3.5 w-3.5" />
@@ -140,7 +154,7 @@ export default function RecruiterJobsPage() {
                       {deletingId === job.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <Trash2 className="h-4 w-4" />
+                        <Archive className="h-4 w-4" />
                       )}
                     </Button>
                     <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-blue-600 transition-colors" />

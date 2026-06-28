@@ -8,6 +8,7 @@ import {
   useJobApplications,
   useUpdateApplicationStatus,
   useDeleteRecruiterJob,
+  useUpdateJobStatus,
 } from "@/hooks/useRecruiter";
 import {
   ArrowLeft,
@@ -25,6 +26,10 @@ import {
   XCircle,
   Clock,
   Shield,
+  Activity,
+  PauseCircle,
+  PlayCircle,
+  Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +59,7 @@ export default function RecruiterJobDetailPage() {
   const { data: applicationsData, isLoading: appsLoading } = useJobApplications(jobId);
   const { mutate: updateStatus } = useUpdateApplicationStatus();
   const { mutate: deleteJob, isPending: isDeleting } = useDeleteRecruiterJob();
+  const { mutate: updateJobStatus, isPending: isUpdatingStatus } = useUpdateJobStatus();
 
   const [expandedApp, setExpandedApp] = useState<number | null>(null);
 
@@ -102,9 +108,20 @@ export default function RecruiterJobDetailPage() {
       {/* Job header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            {job.title}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {job.title}
+            </h1>
+            {job.status && (
+              <span className={`px-2.5 py-1 text-xs font-semibold rounded-full uppercase tracking-wider ${
+                job.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" :
+                job.status === "paused" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" :
+                "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+              }`}>
+                {job.status}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-4 mt-2 text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <Building2 className="h-4 w-4" />
@@ -116,15 +133,42 @@ export default function RecruiterJobDetailPage() {
             </span>
           </div>
         </div>
-        <Button
-          variant="outline"
-          className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30 gap-2"
-          onClick={handleDelete}
-          disabled={isDeleting}
-        >
-          {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          Delete Job
-        </Button>
+        
+        <div className="flex items-center gap-3">
+          {job.status === "active" && (
+            <Button
+              variant="outline"
+              className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:border-amber-900 dark:hover:bg-amber-950/30 gap-2"
+              onClick={() => updateJobStatus({ jobId, status: "paused" })}
+              disabled={isUpdatingStatus}
+            >
+              {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}
+              Pause Hiring
+            </Button>
+          )}
+          {job.status === "paused" && (
+            <Button
+              variant="outline"
+              className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/30 gap-2"
+              onClick={() => updateJobStatus({ jobId, status: "active" })}
+              disabled={isUpdatingStatus}
+            >
+              {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+              Resume Hiring
+            </Button>
+          )}
+          {job.status !== "closed" && (
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30 gap-2"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+              Close Job
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Parsed JD info */}

@@ -43,6 +43,18 @@ export function useDeleteRecruiterJob() {
   });
 }
 
+export function useUpdateJobStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ jobId, status }: { jobId: number; status: string }) =>
+      recruiterApi.updateJobStatus(jobId, status),
+    onSuccess: (_, { jobId }) => {
+      queryClient.invalidateQueries({ queryKey: RECRUITER_QUERY_KEYS.myJobs });
+      queryClient.invalidateQueries({ queryKey: RECRUITER_QUERY_KEYS.jobDetail(jobId) });
+    },
+  });
+}
+
 export function useReparseJob() {
   const queryClient = useQueryClient();
   return useMutation({

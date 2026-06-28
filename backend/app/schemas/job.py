@@ -18,6 +18,7 @@ class JobSummaryResponse(BaseModel):
     id: int
     title: str
     company: str
+    status: str
     created_at: datetime | None = None
 
 
@@ -25,6 +26,10 @@ class JobCreateResponse(BaseModel):
     id: int
     title: str
     company: str
+    status: str
+
+class UpdateJobStatusRequest(BaseModel):
+    status: str
 
 
 class JobDetailResponse(JobSummaryResponse):

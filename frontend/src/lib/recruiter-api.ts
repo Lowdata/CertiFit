@@ -6,6 +6,7 @@ export interface RecruiterJob {
   id: number;
   title: string;
   company: string;
+  status: "active" | "paused" | "closed";
   created_at: string;
 }
 
@@ -13,6 +14,7 @@ export interface RecruiterJobDetail {
   id: number;
   title: string;
   company: string;
+  status: "active" | "paused" | "closed";
   raw_jd: string;
   parsed_jd: Record<string, any>;
   created_at: string;
@@ -111,6 +113,11 @@ export const recruiterApi = {
 
   reparseJob: async (id: number) => {
     const res = await api.post(`/jobs/${id}/reparse`);
+    return res.data;
+  },
+
+  updateJobStatus: async (jobId: number, status: string): Promise<RecruiterJobDetail> => {
+    const res = await api.patch(`/jobs/${jobId}/status`, { status });
     return res.data;
   },
 

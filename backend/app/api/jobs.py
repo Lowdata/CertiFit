@@ -28,6 +28,7 @@ from app.schemas.job import (
     JobListResponse,
     JobParseResponse,
     JobReparseResponse,
+    UpdateJobStatusRequest,
 )
 from app.schemas.application import (
     ApplicationResponse,
@@ -44,7 +45,8 @@ from app.services.job_service import (
     get_jobs_by_recruiter,
     get_job_by_id,
     delete_job,
-    reparse_job
+    reparse_job,
+    update_job_status
 )
 from app.services.candidate_service import (
     get_candidate_by_user_id
@@ -92,7 +94,8 @@ def create_new_job(
     return {
         "id": job.id,
         "title": job.title,
-        "company": job.company
+        "company": job.company,
+        "status": job.status
     }
 
 
@@ -122,6 +125,7 @@ def list_my_jobs(
                 "id": job.id,
                 "title": job.title,
                 "company": job.company,
+                "status": job.status,
                 "created_at": job.created_at
             }
             for job in jobs
@@ -163,6 +167,7 @@ def list_jobs(
                 "id": job.id,
                 "title": job.title,
                 "company": job.company,
+                "status": job.status,
                 "created_at": job.created_at
             }
             for job in jobs
@@ -192,6 +197,7 @@ def get_job(
         "id": job.id,
         "title": job.title,
         "company": job.company,
+        "status": job.status,
         "raw_jd": job.raw_jd,
         "parsed_jd": job.parsed_jd_json,
         "created_at": job.created_at,
@@ -224,6 +230,36 @@ def remove_job(
     return {
         "message": "Job deleted successfully",
         "job_id": job_id
+    }
+
+
+@router.patch("/{job_id}/status", response_model=JobDetailResponse)
+def change_job_status(
+    job_id: int,
+    data: UpdateJobStatusRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_recruiter)
+):
+    job = update_job_status(
+        db=db,
+        job_id=job_id,
+        recruiter_id=current_user.id,
+        status=data.status
+    )
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found"
+        )
+    return {
+        "id": job.id,
+        "title": job.title,
+        "company": job.company,
+        "status": job.status,
+        "raw_jd": job.raw_jd,
+        "parsed_jd": job.parsed_jd_json,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at
     }
 
 
