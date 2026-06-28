@@ -15,7 +15,8 @@ from app.models.user import User
 
 from app.core.dependencies import (
     get_current_candidate,
-    get_current_recruiter
+    get_current_recruiter,
+    get_current_user_optional
 )
 
 from app.schemas.job import (
@@ -134,15 +135,23 @@ def list_jobs(
     page_size: int = Query(10, ge=1, le=100),
     company: Optional[str] = None,
     title: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
+
+    exclude_applied_by_candidate_id = None
+    if current_user and current_user.user_type == 2:
+        candidate = get_candidate_by_user_id(db=db, user_id=current_user.id)
+        if candidate:
+            exclude_applied_by_candidate_id = candidate.id
 
     jobs, total = get_jobs(
         db=db,
         page=page,
         page_size=page_size,
         company=company,
-        title=title
+        title=title,
+        exclude_applied_by_candidate_id=exclude_applied_by_candidate_id
     )
 
     return {

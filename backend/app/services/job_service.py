@@ -54,7 +54,8 @@ def get_jobs(
     page: int,
     page_size: int,
     company: str | None = None,
-    title: str | None = None
+    title: str | None = None,
+    exclude_applied_by_candidate_id: int | None = None
 ):
 
     query = db.query(Job)
@@ -68,6 +69,13 @@ def get_jobs(
         query = query.filter(
             Job.title.ilike(f"%{title}%")
         )
+
+    if exclude_applied_by_candidate_id:
+        from app.models.application import Application
+        applied_job_ids = db.query(Application.job_id).filter(
+            Application.candidate_id == exclude_applied_by_candidate_id
+        ).subquery()
+        query = query.filter(Job.id.notin_(applied_job_ids))
 
     total = query.count()
 

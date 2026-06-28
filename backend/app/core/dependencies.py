@@ -2,6 +2,7 @@
 
 from fastapi import Depends
 from fastapi import HTTPException
+from typing import Optional
 
 from fastapi.security import HTTPBearer
 from fastapi.security import HTTPAuthorizationCredentials
@@ -31,7 +32,35 @@ from app.core.security import (
 # =====================================
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security_optional
+    ),
+    db: Session = Depends(get_db)
+):
+    if not credentials:
+        return None
+        
+    token = credentials.credentials
+    try:
+        payload = decode_access_token(token)
+    except Exception:
+        return None
+        
+    if not payload:
+        return None
+
+    user = (
+        db.query(User)
+        .filter(
+            User.id == int(payload["sub"])
+        )
+        .first()
+    )
+
+    return user
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(

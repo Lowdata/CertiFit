@@ -47,7 +47,7 @@ export function useApplyToJob() {
       return res.data;
     },
     onSuccess: (_, jobId) => {
-      queryClient.invalidateQueries({ queryKey: ["jobs", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
   });
