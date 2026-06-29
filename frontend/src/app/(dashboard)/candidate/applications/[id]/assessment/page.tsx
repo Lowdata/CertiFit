@@ -107,6 +107,7 @@ export default function AssessmentRoomPage() {
     } catch (err: any) {
       console.error("Submission error:", err);
       setError(err.message || "Failed to submit recording");
+      clearBlobUrl(); // Prevent infinite retry loop on failure
     } finally {
       setIsSubmitting(false);
     }
