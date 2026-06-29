@@ -83,15 +83,36 @@ export default function CandidateReportPage() {
         </p>
       </div>
 
+      {/* Recommendation Section */}
+      {report.score_explanations?.recommendation && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-100 dark:border-blue-900 mb-6">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/40">
+                <Brain className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  AI Recommendation
+                </h4>
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  {report.score_explanations.recommendation}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Score Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="bg-white dark:bg-slate-900 border-border">
           <CardContent className="p-5">
             <div className="flex items-center gap-3 mb-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/40">
                 <Target className="h-5 w-5 text-blue-600" />
               </div>
-              <span className="text-sm font-medium text-muted-foreground">Fit Score</span>
+              <span className="text-sm font-medium text-muted-foreground">Technical Fit Score</span>
             </div>
             <ScoreGauge label="" value={report.fit_score} color="bg-blue-500" />
           </CardContent>
@@ -105,17 +126,6 @@ export default function CandidateReportPage() {
               <span className="text-sm font-medium text-muted-foreground">Trust Score</span>
             </div>
             <ScoreGauge label="" value={report.trust_score} color="bg-emerald-500" />
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-slate-900 border-border">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/40">
-                <TrendingUp className="h-5 w-5 text-purple-600" />
-              </div>
-              <span className="text-sm font-medium text-muted-foreground">Composite</span>
-            </div>
-            <ScoreGauge label="" value={report.composite_score} color="bg-purple-500" />
           </CardContent>
         </Card>
       </div>
@@ -295,21 +305,26 @@ export default function CandidateReportPage() {
                       {category.replace(/_/g, " ")}
                     </h4>
                     <div className="space-y-3">
-                      {(questions as Array<{ question: string; rationale?: string }>).map((q, i) => (
-                        <div
-                          key={i}
-                          className="rounded-lg border border-border p-3 bg-muted/20"
-                        >
-                          <p className="text-sm font-medium text-foreground">
-                            {q.question}
-                          </p>
-                          {q.rationale && (
-                            <p className="text-xs text-muted-foreground mt-1.5 italic">
-                              {q.rationale}
+                      {(questions as Array<string | { question: string; rationale?: string }>).map((q, i) => {
+                        const questionText = typeof q === 'string' ? q : q.question;
+                        const rationaleText = typeof q === 'string' ? null : q.rationale;
+                        
+                        return (
+                          <div
+                            key={i}
+                            className="rounded-lg border border-border p-3 bg-muted/20"
+                          >
+                            <p className="text-sm font-medium text-foreground">
+                              {questionText}
                             </p>
-                          )}
-                        </div>
-                      ))}
+                            {rationaleText && (
+                              <p className="text-xs text-muted-foreground mt-1.5 italic">
+                                {rationaleText}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

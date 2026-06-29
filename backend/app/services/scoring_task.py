@@ -64,6 +64,10 @@ def process_application_scoring_background(application_id: int):
             trust_data=trust_data,
             profile=getattr(candidate, "normalized_profile_json", None) or {},
         )
+        
+        # Add LLM recommendation to explanations
+        if match.get("summary"):
+            score_explanations["recommendation"] = match["summary"]
 
         application.match_score = fit
         application.match_summary = match["summary"]

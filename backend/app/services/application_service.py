@@ -112,120 +112,105 @@ def calculate_match(
     job: Job,
     candidate: Candidate
 ):
+    import json
+    from app.core.config import GEMINI_API_KEY
+    from google import genai
+    from app.services.llm_validation import safe_gemini_call
 
     job_data = job.parsed_jd_json or {}
-    candidate_data = candidate.parsed_candidate_json or {}
+    candidate_profile = getattr(candidate, "normalized_profile_json", None) or candidate.parsed_candidate_json or {}
 
-    required_skills = _as_set(
-        job_data.get("required_skills", [])
-    )
-    inferred_skills = _as_set(
-        job_data.get("inferred_skills", [])
-    )
-    candidate_skills = _as_set(
-        _candidate_skill_terms(candidate)
-    )
+    prompt = f"""You are an Expert AI Technical Recruiter evaluating a candidate's Fit Score for a job.
+You must move beyond exact keyword matching and perform evidence-weighted semantic matching.
+(e.g., FastAPI experience implies REST API experience; Next.js implies React).
 
-    job_tech = _as_set(
-        _tech_values(job_data.get("tech_stack", {}))
-    )
+=== JOB DESCRIPTION ===
+{json.dumps(job_data, indent=2)}
 
-    profile = getattr(candidate, "normalized_profile_json", None) or {}
-    if profile.get("skills"):
-        # Normalized profile already flattens tech_stack into its canonical
-        # skills list across resume + LinkedIn + GitHub.
-        candidate_tech = _as_set(profile.get("skills"))
-    else:
-        candidate_tech = _as_set(
-            _tech_values(candidate_data.get("tech_stack", {}))
+=== CANDIDATE PROFILE ===
+{json.dumps(candidate_profile, indent=2)}
+
+=== SCORING CATEGORIES ===
+1. required_skills_score (Max 40): Do they have the required skills or semantic equivalents?
+2. transferable_skills_score (Max 20): Do they have skills that strongly transfer to the job's stack?
+3. projects_score (Max 15): Do their projects demonstrate the required complexity?
+4. experience_score (Max 10): Does their years of experience match the requirements?
+5. ai_reasoning_score (Max 10): Overall AI assessment of their technical depth.
+6. education_score (Max 5): Education match.
+
+Return ONLY valid JSON in this exact shape:
+{{
+  "required_skills_score": <int 0-40>,
+  "transferable_skills_score": <int 0-20>,
+  "projects_score": <int 0-15>,
+  "experience_score": <int 0-10>,
+  "ai_reasoning_score": <int 0-10>,
+  "education_score": <int 0-5>,
+  "strengths": ["<strength 1>", "<strength 2>"],
+  "gaps": ["<gap 1>", "<gap 2>"],
+  "recommendation": "<Actionable recommendation (e.g. Proceed with interview. Probe on AWS)>"
+}}
+"""
+    schema_keys = [
+        "required_skills_score", "transferable_skills_score", "projects_score",
+        "experience_score", "ai_reasoning_score", "education_score",
+        "strengths", "gaps", "recommendation"
+    ]
+
+    def _fallback(reason):
+        error_msg = str(reason)
+        friendly_reason = "AI evaluation is temporarily unavailable. Fallback calculations were used."
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            friendly_reason = "The AI engine is currently experiencing high traffic (API Rate Limit). Fallback calculations were used for this profile."
+
+        return {
+            "required_skills_score": 20,
+            "transferable_skills_score": 10,
+            "projects_score": 5,
+            "experience_score": 5,
+            "ai_reasoning_score": 5,
+            "education_score": 0,
+            "strengths": ["Fallback calculation used"],
+            "gaps": ["LLM evaluation failed"],
+            "recommendation": friendly_reason
+        }
+
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        result, _ = safe_gemini_call(
+            client=client,
+            prompt=prompt,
+            schema_keys=schema_keys,
+            fallback_fn=_fallback,
+            label="fit_score"
         )
+    except Exception as e:
+        logger.warning(f"Failed to initialize Gemini for fit scoring: {e}")
+        result = _fallback(str(e))
 
-    required_skill_matches = required_skills.intersection(
-        candidate_skills
-    )
-    inferred_skill_matches = inferred_skills.intersection(
-        candidate_skills
-    )
-    tech_matches = job_tech.intersection(
-        candidate_tech
-    )
-
-    required_skill_score = 0
-    if required_skills:
-        required_skill_score = (
-            len(required_skill_matches) / len(required_skills)
-        ) * 50
-
-    inferred_skill_score = 0
-    if inferred_skills:
-        inferred_skill_score = (
-            len(inferred_skill_matches) / len(inferred_skills)
-        ) * 10
-
-    tech_score = 0
-    if job_tech:
-        tech_score = (
-            len(tech_matches) / len(job_tech)
-        ) * 25
-
-    required_years = job_data.get(
-        "experience_years",
-        0
-    ) or 0
-    candidate_years = candidate_data.get(
-        "years_experience",
-        0
-    ) or 0
-
-    experience_score = 15
-    if required_years:
-        experience_score = min(
-            candidate_years / required_years,
-            1
-        ) * 15
-
-    score = round(
-        min(
-            required_skill_score
-            + inferred_skill_score
-            + tech_score
-            + experience_score,
-            100
-        ),
-        2
-    )
-
-    strengths = sorted(
-        required_skill_matches.union(inferred_skill_matches, tech_matches)
-    )
-    gaps = sorted(
-        required_skills.difference(candidate_skills)
-    )
-
-    summary = (
-        f"Score {score}: required skills "
-        f"{len(required_skill_matches)}/{len(required_skills)}, "
-        f"inferred skills {len(inferred_skill_matches)}/{len(inferred_skills)}, "
-        f"tech {len(tech_matches)}/{len(job_tech)}, "
-        f"experience {candidate_years}/{required_years or 0} years"
-    )
+    score = min(100.0, float(
+        result.get("required_skills_score", 0) +
+        result.get("transferable_skills_score", 0) +
+        result.get("projects_score", 0) +
+        result.get("experience_score", 0) +
+        result.get("ai_reasoning_score", 0) +
+        result.get("education_score", 0)
+    ))
 
     return {
         "score": score,
-        "summary": summary,
-        "strengths": strengths,
-        "gaps": gaps
+        "summary": result.get("recommendation", ""),
+        "strengths": result.get("strengths", []),
+        "gaps": result.get("gaps", []),
+        "raw_scores": result
     }
 
 
 def _composite_score(fit_score: float, trust_score: float) -> float:
     """
-    composite = fit * (0.6 + 0.4 * (trust / 100))
-    Range: 0-100. Deterministic, no rounding quirks.
+    Deprecated: Do not mix Trust and Fit. Return Fit directly.
     """
-    normalised_trust = max(0.0, min(trust_score, 100.0)) / 100.0
-    raw = fit_score * (0.6 + 0.4 * normalised_trust)
-    return round(min(raw, 100.0), 2)
+    return round(fit_score, 2)
 
 
 def _build_score_explanations(

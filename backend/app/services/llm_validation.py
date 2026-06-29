@@ -7,7 +7,13 @@ from google.genai import types
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-2.5-flash"
+FALLBACK_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite"
+]
+GEMINI_MODEL = FALLBACK_MODELS[0]
 GEMINI_TIMEOUT_MS = 30_000
 GEMINI_RETRY_ATTEMPTS = 2
 
@@ -217,11 +223,23 @@ def safe_gemini_call(
     }
 
     try:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=gemini_json_config(),
-        )
+        response = None
+        last_err = None
+        for model_name in FALLBACK_MODELS:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=gemini_json_config(),
+                )
+                break  # Success
+            except Exception as e:
+                logger.warning(f"Model {model_name} failed: {e}")
+                last_err = e
+                continue
+        
+        if response is None:
+            raise last_err or Exception("All fallback models failed")
 
         # Check for safety block
         finish_reason = None
@@ -262,7 +280,9 @@ def safe_gemini_call(
 
     except Exception as exc:
         reason = f"unexpected:{type(exc).__name__}:{exc}"
-        logger.exception("%s LLM call unexpected failure", label)
+        if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc):
+            logger.warning("%s LLM API Rate Limit Hit (429): %s", label, exc)
+        else:
+            logger.warning("%s LLM call unexpected failure: %s", label, exc)
         metadata.update(status="error", error_reason=reason, fallback_used=True)
         return fallback_fn(f"{label}_error:{reason}"), metadata
-
