@@ -32,9 +32,10 @@ export function usePresignedUrl() {
 
 export function useSubmitRecording() {
   return useMutation({
-    mutationFn: async ({ assessmentId, questionId, objectKey }: { assessmentId: number, questionId: number, objectKey: string }) => {
+    mutationFn: async ({ assessmentId, questionId, objectKey, tabSwitches = 0 }: { assessmentId: number, questionId: number, objectKey: string, tabSwitches?: number }) => {
       const { data } = await api.post(`/assessments/me/${assessmentId}/question/${questionId}/submit`, {
-        object_key: objectKey
+        object_key: objectKey,
+        tab_switches: tabSwitches
       });
       return data;
     }

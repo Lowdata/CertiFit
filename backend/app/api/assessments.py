@@ -142,6 +142,7 @@ from pydantic import BaseModel
 
 class SubmitRecordingRequest(BaseModel):
     object_key: str
+    tab_switches: int = 0
 
 
 def process_recording_background(db: Session, recording_id: int, object_key: str):
@@ -211,6 +212,15 @@ def submit_recording(
     
     # Advance question index
     assessment.current_question_index += 1
+    
+    # Track integrity signals (tab switches)
+    signals = assessment.integrity_signals or []
+    signals.append({
+        "question_id": question_id,
+        "tab_switches": data.tab_switches
+    })
+    assessment.integrity_signals = signals
+    
     db.commit()
     
     return {"status": "processing"}

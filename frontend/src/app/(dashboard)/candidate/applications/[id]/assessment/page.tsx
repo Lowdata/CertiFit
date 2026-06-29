@@ -12,7 +12,7 @@ import {
 } from "@/hooks/useAssessments";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2, Video, Square, PlayCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Video, Square, PlayCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 
 export default function AssessmentRoomPage() {
   const params = useParams();
@@ -27,6 +27,7 @@ export default function AssessmentRoomPage() {
   
   const [prepTimeLeft, setPrepTimeLeft] = useState(30);
   const [recordingTimeLeft, setRecordingTimeLeft] = useState(60);
+  const [tabSwitches, setTabSwitches] = useState(0);
 
   const startAssessmentMut = useStartAssessment();
   const presignedUrlMut = usePresignedUrl();
@@ -91,7 +92,8 @@ export default function AssessmentRoomPage() {
       await submitRecordingMut.mutateAsync({
         assessmentId,
         questionId: currentQuestionData.question.id,
-        objectKey: object_key
+        objectKey: object_key,
+        tabSwitches
       });
       
       // 5. Cleanup and proceed
@@ -99,6 +101,7 @@ export default function AssessmentRoomPage() {
       // Reset timers for the next question
       setPrepTimeLeft(30);
       setRecordingTimeLeft(60);
+      setTabSwitches(0);
       await refetchQuestion();
       
     } catch (err: any) {
@@ -149,6 +152,18 @@ export default function AssessmentRoomPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaBlobUrl, isSubmitting, currentQuestionData?.question?.id]);
+
+  // Track tab switching for integrity
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && currentQuestionData?.question) {
+        setTabSwitches(prev => prev + 1);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [currentQuestionData?.question]);
 
   if (isInitializing) {
     return (
@@ -205,7 +220,17 @@ export default function AssessmentRoomPage() {
       {isQuestionLoading ? (
         <Card className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></Card>
       ) : question ? (
-        <Card className="overflow-hidden border-border/50 shadow-lg">
+        <div className="space-y-4">
+          {tabSwitches > 0 && (
+            <div className="bg-destructive/15 text-destructive border border-destructive/30 px-4 py-3 rounded-lg flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm font-medium">
+                Warning: You have switched tabs {tabSwitches} time(s) during this question. This is recorded and will affect your integrity score.
+              </p>
+            </div>
+          )}
+          
+          <Card className="overflow-hidden border-border/50 shadow-lg">
           <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b">
             <CardDescription className="uppercase tracking-widest font-semibold text-primary mb-2">
               {question.type} Question
@@ -262,6 +287,7 @@ export default function AssessmentRoomPage() {
             </div>
           </CardContent>
         </Card>
+        </div>
       ) : null}
     </div>
   );
