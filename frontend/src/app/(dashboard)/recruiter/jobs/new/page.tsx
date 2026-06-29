@@ -73,7 +73,7 @@ export default function NewJobPage() {
         apply_type: applyType,
         external_apply_url: applyType === "external" ? externalUrl.trim() : null,
         screening_questions: questions.filter(q => q.question.trim().length > 0)
-      });
+      } as any);
       router.push(`/recruiter/jobs/${result.id}`);
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { detail?: string } } };

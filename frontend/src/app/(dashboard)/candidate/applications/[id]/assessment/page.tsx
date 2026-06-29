@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-const Webcam = dynamic(() => import("react-webcam"), { ssr: false });
+const Webcam: any = dynamic(() => import("react-webcam").then(mod => mod.default) as any, { ssr: false });
 import { useReactMediaRecorder } from "react-media-recorder";
 import { 
   useStartAssessment, 
@@ -24,11 +24,14 @@ export default function AssessmentRoomPage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const hasStarted = useRef(false);
   
   const [prepTimeLeft, setPrepTimeLeft] = useState(30);
   const [recordingTimeLeft, setRecordingTimeLeft] = useState(60);
   const [tabSwitches, setTabSwitches] = useState(0);
+  const [fullscreenExits, setFullscreenExits] = useState(0);
 
   const startAssessmentMut = useStartAssessment();
   const presignedUrlMut = usePresignedUrl();
@@ -89,12 +92,12 @@ export default function AssessmentRoomPage() {
         throw new Error("Failed to upload video to storage");
       }
       
-      // 4. Submit object key to backend
+      // 4. Submit object key to backend (tracking integrity signals)
       await submitRecordingMut.mutateAsync({
         assessmentId,
         questionId: currentQuestionData.question.id,
         objectKey: object_key,
-        tabSwitches
+        tabSwitches: tabSwitches + fullscreenExits
       });
       
       // 5. Cleanup and proceed
@@ -103,16 +106,30 @@ export default function AssessmentRoomPage() {
       setPrepTimeLeft(30);
       setRecordingTimeLeft(60);
       setTabSwitches(0);
+      setFullscreenExits(0);
+      setUploadProgress(0);
       await refetchQuestion();
       
     } catch (err: any) {
       console.error("Submission error:", err);
       setError(err.message || "Failed to submit recording");
       clearBlobUrl(); // Prevent infinite retry loop on failure
+      setUploadProgress(0);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Simulate upload progress
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isSubmitting) {
+      interval = setInterval(() => {
+        setUploadProgress(p => (p < 95 ? p + 5 : p));
+      }, 500);
+    }
+    return () => clearInterval(interval);
+  }, [isSubmitting]);
 
   // Timer logic for prep and recording
   useEffect(() => {
@@ -155,7 +172,7 @@ export default function AssessmentRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaBlobUrl, isSubmitting, currentQuestionData?.question?.id]);
 
-  // Track tab switching for integrity
+  // Track tab switching and fullscreen for integrity
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && currentQuestionData?.question) {
@@ -163,9 +180,32 @@ export default function AssessmentRoomPage() {
       }
     };
 
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+        if (currentQuestionData?.question) {
+          setFullscreenExits(prev => prev + 1);
+        }
+      } else {
+        setIsFullscreen(true);
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
   }, [currentQuestionData?.question]);
+
+  const requestFullscreen = async () => {
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch (err) {
+      console.error("Failed to enter fullscreen", err);
+    }
+  };
 
   if (isInitializing) {
     return (
@@ -196,7 +236,10 @@ export default function AssessmentRoomPage() {
         <p className="text-muted-foreground text-lg">
           Thank you for completing the assessment. Your recordings are now being processed by our AI and will be reviewed by the recruiting team shortly.
         </p>
-        <Button onClick={() => router.push("/candidate/applications")} size="lg">
+        <Button onClick={() => {
+          if (document.fullscreenElement) document.exitFullscreen();
+          router.push("/candidate/applications");
+        }} size="lg">
           Return to Dashboard
         </Button>
       </div>
@@ -204,6 +247,21 @@ export default function AssessmentRoomPage() {
   }
 
   const question = currentQuestionData?.question;
+
+  // Force fullscreen before starting
+  if (question && !isFullscreen) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
+        <AlertTriangle className="w-16 h-16 text-yellow-500" />
+        <h2 className="text-2xl font-bold">Fullscreen Required</h2>
+        <p className="text-muted-foreground max-w-md">
+          To ensure interview integrity, you must complete this assessment in fullscreen mode. 
+          Exiting fullscreen will be recorded as an integrity violation.
+        </p>
+        <Button onClick={requestFullscreen} size="lg">Enter Fullscreen</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -223,11 +281,11 @@ export default function AssessmentRoomPage() {
         <Card className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></Card>
       ) : question ? (
         <div className="space-y-4">
-          {tabSwitches > 0 && (
+          {(tabSwitches > 0 || fullscreenExits > 0) && (
             <div className="bg-destructive/15 text-destructive border border-destructive/30 px-4 py-3 rounded-lg flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
               <p className="text-sm font-medium">
-                Warning: You have switched tabs {tabSwitches} time(s) during this question. This is recorded and will affect your integrity score.
+                Warning: You have exited fullscreen or switched tabs {tabSwitches + fullscreenExits} time(s). This is recorded and will affect your integrity score.
               </p>
             </div>
           )}
@@ -274,10 +332,24 @@ export default function AssessmentRoomPage() {
                   </Button>
                 )}
                 {(isSubmitting || mediaBlobUrl) && (
-                  <Button disabled size="lg" className="gap-2 w-full sm:w-auto">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Submitting...
-                  </Button>
+                  <div className="w-full sm:w-auto min-w-[200px]">
+                    {isSubmitting ? (
+                      <div className="w-full flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-primary font-medium text-sm">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Uploading Response... {uploadProgress}%
+                        </div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                          <div className="bg-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                      </div>
+                    ) : (
+                      <Button disabled size="lg" className="gap-2 w-full">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
               

@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 import threading
 from contextlib import asynccontextmanager
-from app.services.candidate_evaluation_service import process_pending_evaluations
+from app.services.candidate_evaluation_service import process_pending_evaluations, process_pending_recordings
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.jobs import router as jobs_router
 from app.api.app import router as health_router
@@ -33,7 +33,8 @@ def _run_ai_evaluator():
     while True:
         try:
             process_pending_evaluations()
-        except Exception:
+            process_pending_recordings()
+        except Exception as e:
             pass # Logger handles it inside the service
         time.sleep(30) # Poll every 30 seconds
 

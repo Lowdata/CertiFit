@@ -142,6 +142,13 @@ class AssessmentRecording(Base):
 
     __tablename__ = "assessment_recordings"
 
+    __table_args__ = (
+        CheckConstraint(
+            "ai_status in ('QUEUED', 'PROCESSING', 'RETRYING', 'COMPLETE', 'FAILED')",
+            name="ck_assessment_rec_ai_status"
+        ),
+    )
+
     id: Mapped[int] = mapped_column(
         primary_key=True,
         index=True
@@ -177,6 +184,23 @@ class AssessmentRecording(Base):
     duration_seconds: Mapped[float] = mapped_column(
         Float,
         nullable=True
+    )
+
+    ai_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=True,
+        index=True
+    )
+
+    ai_retry_after: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    ai_retry_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0
     )
 
     created_at: Mapped[datetime] = mapped_column(

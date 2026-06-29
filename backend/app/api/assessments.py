@@ -144,42 +144,9 @@ class SubmitRecordingRequest(BaseModel):
     tab_switches: int = 0
 
 
+# Inline processing removed in favor of queued background worker
 def process_recording_background(db: Session, recording_id: int, object_key: str):
-    from app.services.storage_service import download_file
-    from app.services.media_service import extract_audio_from_video, transcribe_audio
-    from app.services.assessment_evaluator import evaluate_question_answer
-    import os
-    import tempfile
-    
-    recording = db.query(AssessmentRecording).filter(AssessmentRecording.id == recording_id).first()
-    if not recording:
-        return
-        
-    question = db.query(AssessmentQuestion).filter(AssessmentQuestion.id == recording.question_id).first()
-    
-    # We need a fresh DB session for the background task if not properly detached, but passing db works for basic test
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_video:
-            video_path = temp_video.name
-            
-        success = download_file(object_key, video_path)
-        if success:
-            audio_path = extract_audio_from_video(video_path)
-            transcript = transcribe_audio(audio_path)
-            recording.transcript_text = transcript
-            
-            evaluation = evaluate_question_answer(transcript, question.question_text, question.question_type)
-            recording.ai_evaluation_json = evaluation
-            
-            # Clean up
-            os.remove(video_path)
-            if os.path.exists(audio_path):
-                os.remove(audio_path)
-                
-            db.commit()
-    except Exception as e:
-        print(f"Background processing failed: {e}")
-        # In a real app we'd mark the recording as failed
+    pass
 
 
 @router.post("/me/{assessment_id}/question/{question_id}/submit")
@@ -198,16 +165,16 @@ def submit_recording(
     if not recording:
         recording = AssessmentRecording(
             question_id=question_id,
-            video_url=get_public_url(data.object_key)
+            video_url=data.object_key, # Store object_key here for the worker to download, or maybe keep public url but the worker needs the key
+            ai_status="QUEUED"
         )
         db.add(recording)
         db.commit()
         db.refresh(recording)
     else:
-        recording.video_url = get_public_url(data.object_key)
+        recording.video_url = data.object_key # Storing object_key directly instead of public url for now, so the worker can fetch it via R2
+        recording.ai_status = "QUEUED"
         db.commit()
-        
-    background_tasks.add_task(process_recording_background, db, recording.id, data.object_key)
     
     # Advance question index
     assessment.current_question_index += 1

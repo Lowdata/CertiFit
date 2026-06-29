@@ -84,7 +84,7 @@ export default function CandidateReportPage() {
       </div>
 
       {/* Recommendation Section */}
-      {report.score_explanations?.recommendation && (
+      {!!report.score_explanations?.recommendation && (
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-100 dark:border-blue-900 mb-6">
           <CardContent className="p-5">
             <div className="flex items-start gap-3">
@@ -96,7 +96,7 @@ export default function CandidateReportPage() {
                   AI Recommendation
                 </h4>
                 <p className="text-sm text-blue-800 dark:text-blue-300">
-                  {report.score_explanations.recommendation}
+                  {String(report.score_explanations.recommendation)}
                 </p>
               </div>
             </div>

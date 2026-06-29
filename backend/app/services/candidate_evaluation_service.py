@@ -6,6 +6,12 @@ from app.db.database import SessionLocal
 from app.models.application import Application, AIStatus
 from app.models.candidate import Candidate
 from app.models.job import Job
+from app.models.assessment import AssessmentRecording, AssessmentQuestion
+from app.services.storage_service import download_file
+from app.services.media_service import extract_audio_from_video, transcribe_audio
+from app.services.assessment_evaluator import evaluate_question_answer
+import os
+import tempfile
 from app.services.llm_validation import safe_gemini_call
 import google.genai as genai
 from app.core.config import GEMINI_API_KEY
@@ -156,5 +162,91 @@ def process_pending_evaluations():
                     application.ai_status_metadata = {"error": error_msg}
                 db.commit()
 
+    finally:
+        db.close()
+
+def process_pending_recordings():
+    """
+    Poll the database for QUEUED or RETRYING assessment recordings and process them.
+    Includes Whisper transcription and Gemini evaluation.
+    """
+    db: Session = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        recordings = (
+            db.query(AssessmentRecording)
+            .filter(
+                (AssessmentRecording.ai_status == AIStatus.QUEUED) |
+                ((AssessmentRecording.ai_status == AIStatus.RETRYING) & (AssessmentRecording.ai_retry_after <= now))
+            )
+            .order_by(AssessmentRecording.created_at)
+            .limit(3)
+            .all()
+        )
+
+        if not recordings:
+            return
+
+        for recording in recordings:
+            try:
+                recording.ai_status = AIStatus.PROCESSING
+                db.commit()
+                
+                question = db.query(AssessmentQuestion).filter(AssessmentQuestion.id == recording.question_id).first()
+                if not question or not recording.video_url:
+                    raise ValueError("Missing question or video_url")
+                
+                # Assume video_url actually stores object_key as updated earlier
+                object_key = recording.video_url
+                
+                with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_video:
+                    video_path = temp_video.name
+                    
+                success = download_file(object_key, video_path)
+                if not success:
+                    raise RuntimeError("Failed to download video from R2")
+                    
+                audio_path = extract_audio_from_video(video_path)
+                transcript = transcribe_audio(audio_path)
+                recording.transcript_text = transcript
+                
+                # Evaluate using Gemini (this handles 429 internally in evaluator, or raises it)
+                # Note: evaluate_question_answer likely uses its own client, but we will catch 429s below
+                evaluation = evaluate_question_answer(transcript, question.question_text, question.question_type)
+                recording.ai_evaluation_json = evaluation
+                
+                # Cleanup
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
+                    
+                recording.ai_status = AIStatus.COMPLETE
+                recording.ai_retry_count = 0
+                db.commit()
+                logger.info(f"Successfully evaluated recording {recording.id}")
+                
+            except Exception as e:
+                db.rollback()
+                error_msg = str(e)
+                logger.warning(f"Failed to evaluate recording {recording.id}: {error_msg}")
+                
+                # Clean up temp files if they exist on error
+                try:
+                    if 'video_path' in locals() and os.path.exists(video_path):
+                        os.remove(video_path)
+                    if 'audio_path' in locals() and os.path.exists(audio_path):
+                        os.remove(audio_path)
+                except Exception:
+                    pass
+
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    recording.ai_status = AIStatus.RETRYING
+                    recording.ai_retry_count += 1
+                    delay_seconds = 30 * (2 ** (recording.ai_retry_count - 1))
+                    recording.ai_retry_after = datetime.now(UTC) + timedelta(seconds=delay_seconds)
+                else:
+                    recording.ai_status = AIStatus.FAILED
+                db.commit()
     finally:
         db.close()

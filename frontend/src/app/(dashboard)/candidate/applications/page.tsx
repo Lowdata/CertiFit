@@ -4,12 +4,13 @@ import { useMyApplications } from "@/hooks/useApplications";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Building2, Calendar, Clock, AlertCircle } from "lucide-react";
+import { FileText, Building2, Calendar, Clock, AlertCircle, CheckCircle2, Circle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useJobs } from "@/hooks/useJobs";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { PlayCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function CandidateApplicationsPage() {
   const { data: applications, isLoading, isError } = useMyApplications();
@@ -109,14 +110,80 @@ export default function CandidateApplicationsPage() {
                       </p>
                     </div>
                   )}
-                  <div className="mt-6 flex justify-end">
-                    <Button 
-                      onClick={() => router.push(`/candidate/applications/${app.id}/assessment`)}
-                      variant="default"
-                    >
-                      <PlayCircle className="w-4 h-4 mr-2" />
-                      Take Assessment
-                    </Button>
+
+                  {/* Visual Timeline */}
+                  <div className="mt-8 pt-6 border-t border-border">
+                    <div className="flex items-center justify-between relative">
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-100 dark:bg-slate-800 -z-10 rounded-full" />
+                      
+                      {/* Step 1: Applied */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        <CheckCircle2 className="w-6 h-6 text-primary fill-primary/20" />
+                        <span className="text-xs font-semibold">Applied</span>
+                      </div>
+                      
+                      {/* Step 2: AI Screening */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        {app.match_score !== null ? (
+                          <CheckCircle2 className="w-6 h-6 text-primary fill-primary/20" />
+                        ) : app.status === "rejected" ? (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                        )}
+                        <span className="text-xs font-semibold text-center">
+                          AI Screening
+                        </span>
+                      </div>
+                      
+                      {/* Step 3: Interview */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        {app.status === "shortlisted" || app.status === "hired" ? (
+                          <CheckCircle2 className="w-6 h-6 text-primary fill-primary/20" />
+                        ) : app.status === "rejected" ? (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        ) : (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        )}
+                        <span className="text-xs font-semibold text-center">
+                          Interview
+                        </span>
+                      </div>
+                      
+                      {/* Step 4: Decision */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        {app.status === "hired" ? (
+                          <CheckCircle2 className="w-6 h-6 text-emerald-500 fill-emerald-500/20" />
+                        ) : app.status === "rejected" ? (
+                          <AlertCircle className="w-6 h-6 text-red-500 fill-red-500/20" />
+                        ) : (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        )}
+                        <span className="text-xs font-semibold text-center">
+                          {app.status === "rejected" ? "Rejected" : "Offer"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-end gap-3">
+                    {(app.status === "rejected" || app.status === "hired") && (
+                      <Button 
+                        onClick={() => router.push(`/candidate/applications/${app.id}/report`)}
+                        variant="outline"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        View Feedback
+                      </Button>
+                    )}
+                    {app.status !== "rejected" && app.status !== "hired" && (
+                      <Button 
+                        onClick={() => router.push(`/candidate/applications/${app.id}/assessment/lobby`)}
+                        variant="default"
+                      >
+                        <PlayCircle className="w-4 h-4 mr-2" />
+                        Take Assessment
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
