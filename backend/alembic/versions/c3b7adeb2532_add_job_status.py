@@ -6,7 +6,6 @@ Create Date: 2026-06-29 01:19:31.469796
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision = 'c3b7adeb2532'
 down_revision = '0007_add_composite_ranking'

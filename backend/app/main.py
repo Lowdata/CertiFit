@@ -1,5 +1,8 @@
 # main.py
 from fastapi import FastAPI
+import threading
+from contextlib import asynccontextmanager
+from app.services.candidate_evaluation_service import process_pending_evaluations, process_pending_recordings
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.jobs import router as jobs_router
 from app.api.app import router as health_router
@@ -21,8 +24,29 @@ from app.api.company import (
 from app.api.analytics import (
     router as analytics_router
 )
+from app.api.assessments import (
+    router as assessments_router
+)
 
-app = FastAPI(title="CertiFit")
+def _run_ai_evaluator():
+    import time
+    while True:
+        try:
+            process_pending_evaluations()
+            process_pending_recordings()
+        except Exception as e:
+            pass # Logger handles it inside the service
+        time.sleep(30) # Poll every 30 seconds
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start the AI evaluator background thread
+    worker_thread = threading.Thread(target=_run_ai_evaluator, daemon=True)
+    worker_thread.start()
+    yield
+    # No explicit shutdown needed since it's a daemon thread
+
+app = FastAPI(title="CertiFit", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -78,4 +102,9 @@ app.include_router(
     interview_router,
     prefix="/applications",
     tags=["Interview"]
+)
+
+app.include_router(
+    assessments_router,
+    tags=["Assessments"]
 )

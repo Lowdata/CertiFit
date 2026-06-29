@@ -421,7 +421,7 @@ def _generate_activity_signals(github: dict) -> tuple[int, list[str], list[str]]
         explanations.append(f"Strong recent activity: {recent_count} events in last 90 days")
     elif recent_count > 0:
         pts += 5
-        explanations.append(f"Recent GitHub activity detected")
+        explanations.append("Recent GitHub activity detected")
 
     languages = github.get("language_totals") or {}
     if len(languages) >= 3:
@@ -435,14 +435,15 @@ def _generate_activity_signals(github: dict) -> tuple[int, list[str], list[str]]
 # LLM consistency review (0-20 pts)
 # ---------------------------------------------------------------------------
 
-_LLM_SCHEMA_KEYS = ["concerns", "strengths", "consistency_score"]
+_LLM_SCHEMA_KEYS = ["concerns", "strengths", "consistency_score", "reasoning"]
 
 
 def _fallback_llm_review(reason: str) -> dict[str, Any]:
     return {
         "concerns": [],
         "strengths": [],
-        "consistency_score": 0,  # not used — fallback means no LLM pts awarded
+        "consistency_score": 0,
+        "reasoning": reason,
         "_reason": reason,
     }
 
@@ -529,7 +530,8 @@ Return ONLY valid JSON in this exact shape:
 {{
   "concerns": ["<specific concern>"],
   "strengths": ["<specific strength>"],
-  "consistency_score": <integer 0-100>
+  "consistency_score": <integer 0-100>,
+  "reasoning": "<2-3 sentence explanation of the score, covering what was verified, what evidence was strong, and what was concerning>"
 }}
 
 consistency_score:
@@ -566,6 +568,7 @@ consistency_score:
         "status": meta["status"],
         "error_reason": None,
         "consistency_score": raw_score,
+        "reasoning": result.get("reasoning") or "",
         "llm_concerns": result.get("concerns") or [],
         "llm_strengths": result.get("strengths") or [],
         "fallback_used": False,
@@ -629,26 +632,321 @@ Return exactly this JSON:
     return result
 
 # ---------------------------------------------------------------------------
+# Skill Classification — Three-Bucket System
+# ---------------------------------------------------------------------------
+
+# Confidence levels based on which sources back a skill claim.
+# GitHub evidence is weighted highest because it's hardest to fabricate.
+_SOURCE_CONFIDENCE: dict[frozenset[str], int] = {
+    frozenset({"github", "linkedin", "resume"}): 100,
+    frozenset({"github", "linkedin"}): 92,
+    frozenset({"github", "resume"}): 90,
+    frozenset({"linkedin", "resume"}): 82,
+    frozenset({"github"}): 80,
+    frozenset({"linkedin"}): 55,
+    frozenset({"resume"}): 40,
+}
+
+
+def _classify_skills(
+    evidence_map: dict[str, list[str]],
+) -> tuple[dict[str, dict], dict[str, dict], dict[str, dict]]:
+    """
+    Classify every skill into exactly one of three buckets:
+
+    - **Verified**: 2+ sources OR GitHub evidence (hard to fake).
+    - **Unverified**: single self-reported source, no contradiction.
+      *Not penalized* — absence of evidence ≠ evidence of absence.
+    - **Contradicted**: reserved for future use when evidence actively
+      conflicts with the claim (e.g. overlapping employment dates).
+      Currently empty since "not found in GitHub" is unverified, not
+      contradicted.
+    """
+    verified: dict[str, dict] = {}
+    unverified: dict[str, dict] = {}
+    contradicted: dict[str, dict] = {}
+
+    for skill, sources in evidence_map.items():
+        source_set = frozenset(set(sources))
+        confidence = _SOURCE_CONFIDENCE.get(source_set, 40)
+
+        if len(set(sources)) >= 2 or "github" in set(sources):
+            verified[skill] = {
+                "sources": sorted(set(sources)),
+                "confidence": confidence,
+                "status": "verified",
+            }
+        else:
+            unverified[skill] = {
+                "sources": sorted(set(sources)),
+                "confidence": confidence,
+                "status": "unverified",
+            }
+
+    return verified, unverified, contradicted
+
+
+# ---------------------------------------------------------------------------
+# Category Scoring Functions (each returns 0-100)
+# ---------------------------------------------------------------------------
+
+def _score_identity(
+    parsed: dict, linkedin: dict, github: dict
+) -> tuple[int, list[str]]:
+    """
+    Identity verification (20 % weight).
+
+    Checks whether the candidate has connected external profiles and
+    whether name / title information is consistent across them.
+    """
+    score = 50  # baseline — resume was uploaded
+    explanations: list[str] = []
+
+    if linkedin:
+        score += 20
+        explanations.append("LinkedIn profile connected and linked")
+    if github:
+        score += 15
+        explanations.append("GitHub profile connected and linked")
+
+    # Title / role consistency
+    pts_title, expl, conc = _title_consistency_check(parsed, linkedin)
+    if pts_title > 0:
+        score += 15
+    elif pts_title < 0:
+        score -= 5  # mild deduction, not catastrophic
+    explanations.extend(expl)
+
+    return min(max(score, 0), 100), explanations
+
+
+def _score_experience(
+    parsed: dict, linkedin: dict, evidence_map: dict[str, list[str]]
+) -> tuple[int, list[str]]:
+    """
+    Experience consistency (20 % weight).
+
+    Checks career progression and continuous-learning signals.
+    """
+    score = 50  # baseline
+    explanations: list[str] = []
+
+    career_pts, expl, _ = _generate_career_signals(parsed, linkedin)
+    score += int((career_pts / 15) * 25)
+    explanations.extend(expl)
+
+    learning_pts, expl, _ = _generate_learning_signals(
+        parsed, linkedin, evidence_map
+    )
+    score += int((learning_pts / 10) * 25)
+    explanations.extend(expl)
+
+    return min(max(score, 0), 100), explanations
+
+
+def _score_technical_evidence(
+    evidence_map: dict[str, list[str]],
+) -> tuple[int, list[str], dict[str, dict]]:
+    """
+    Technical evidence (25 % weight).
+
+    Uses the three-bucket system.  Only contradictions carry a heavy
+    penalty; *unverified* claims are scored at their natural confidence
+    level (not zero).
+    """
+    verified, unverified, contradicted = _classify_skills(evidence_map)
+    explanations: list[str] = []
+
+    total_skills = len(evidence_map)
+    if total_skills == 0:
+        return 50, ["No skills to evaluate"], {
+            "verified": {}, "unverified": {}, "contradicted": {},
+        }
+
+    # Weighted average confidence across ALL skills
+    total_confidence = 0
+    for d in verified.values():
+        total_confidence += d["confidence"]
+    for d in unverified.values():
+        total_confidence += d["confidence"]
+    for d in contradicted.values():
+        total_confidence += 0  # zero confidence
+
+    avg_confidence = total_confidence / total_skills
+
+    if verified:
+        explanations.append(
+            f"{len(verified)} skills verified across multiple sources"
+        )
+    if unverified:
+        explanations.append(
+            f"{len(unverified)} skills claimed but not yet corroborated "
+            "(not penalized)"
+        )
+    if contradicted:
+        explanations.append(
+            f"{len(contradicted)} skills have conflicting evidence: "
+            f"{', '.join(contradicted.keys())}"
+        )
+
+    classification = {
+        "verified": verified,
+        "unverified": unverified,
+        "contradicted": contradicted,
+    }
+    return min(max(int(avg_confidence), 0), 100), explanations, classification
+
+
+def _score_timeline(
+    parsed: dict, linkedin: dict
+) -> tuple[int, list[str], list[str]]:
+    """
+    Timeline consistency (10 % weight).
+
+    Distinguishes *intentional resume omission* (very common — people
+    shorten résumés to one page) from *actual date contradictions*.
+    """
+    explanations: list[str] = []
+    concerns: list[str] = []
+
+    resume_history = parsed.get("work_history") or []
+    linkedin_positions = linkedin.get("positions") or []
+
+    if not resume_history or not linkedin_positions:
+        return 90, ["Insufficient data for timeline comparison"], []
+
+    year_re = re.compile(r"\b(20\d{2}|19\d{2})\b")
+
+    resume_years: list[int] = []
+    for entry in resume_history:
+        resume_years.extend(
+            int(y) for y in year_re.findall(json.dumps(entry))
+        )
+
+    linkedin_years: list[int] = []
+    for pos in linkedin_positions:
+        linkedin_years.extend(
+            int(y) for y in year_re.findall(json.dumps(pos))
+        )
+
+    if not resume_years or not linkedin_years:
+        return 90, ["No date information available for comparison"], []
+
+    resume_start = min(resume_years)
+    linkedin_start = min(linkedin_years)
+    gap = abs(resume_start - linkedin_start)
+
+    # Resume is shorter than LinkedIn → likely intentional omission
+    likely_omission = (
+        len(resume_history) < len(linkedin_positions)
+        and resume_start > linkedin_start
+    )
+
+    if gap == 0:
+        explanations.append(
+            "Career timeline perfectly consistent across sources"
+        )
+        return 100, explanations, concerns
+
+    if gap <= 1:
+        explanations.append("Career timeline consistent (within 1 year)")
+        return 95, explanations, concerns
+
+    if likely_omission and gap <= 4:
+        omitted = len(linkedin_positions) - len(resume_history)
+        explanations.append(
+            f"Resume omits {omitted} earlier role(s) from LinkedIn "
+            "(common for brevity — mild deduction)"
+        )
+        concerns.append(
+            f"Resume starts at {resume_start}, LinkedIn at "
+            f"{linkedin_start} ({gap}-year difference — likely intentional)"
+        )
+        return 80, explanations, concerns
+
+    if gap <= 3:
+        concerns.append(
+            f"Timeline gap: resume {resume_start}, LinkedIn "
+            f"{linkedin_start} ({gap}-year difference)"
+        )
+        return 70, explanations, concerns
+
+    concerns.append(
+        f"Significant timeline contradiction: resume {resume_start}, "
+        f"LinkedIn {linkedin_start} ({gap}-year gap)"
+    )
+    return 40, explanations, concerns
+
+
+def _score_github_verification(
+    github: dict, evidence_map: dict[str, list[str]]
+) -> tuple[int, list[str]]:
+    """
+    GitHub verification (15 % weight).
+
+    If no GitHub is connected the score is *neutral* (50), not punitive.
+    """
+    explanations: list[str] = []
+
+    if not github:
+        return 50, ["No GitHub profile connected — score is neutral"]
+
+    score = 40  # baseline for having a connected GitHub
+
+    activity_pts, expl, conc = _generate_activity_signals(github)
+    score += int((activity_pts / 15) * 30)
+    explanations.extend(expl)
+    explanations.extend(conc)
+
+    ownership_pts, expl, _ = _generate_ownership_signals(github)
+    score += int((ownership_pts / 15) * 30)
+    explanations.extend(expl)
+
+    return min(max(score, 0), 100), explanations
+
+
+
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
+_CATEGORY_WEIGHTS: dict[str, float] = {
+    "identity": 0.20,
+    "experience": 0.20,
+    "technical_evidence": 0.30,
+    "timeline": 0.10,
+    "github_verification": 0.20,
+}
+
+
 def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
     """
-    Compute the hybrid trust score for a candidate.
-    Deterministic rules: 0-80 pts (always run).
-    LLM review: 0-20 pts (only added if Gemini succeeds).
+    Compute the weighted, category-based trust score for a candidate.
 
-    Returns the full trust_score output dict — caller stores it.
+    Categories (each scored 0-100, then weighted):
+
+        identity            (20 %)  external profiles, name consistency
+        experience          (20 %)  career progression, certifications
+        technical_evidence  (30 %)  skill verification across sources
+        timeline            (10 %)  date consistency (omission ≠ contradiction)
+        github_verification (20 %)  repo activity, ownership, languages
+
+    Skills are classified into three buckets:
+
+        Verified      2+ sources or GitHub evidence
+        Unverified    single source, no contradiction (NOT penalised)
+        Contradicted  evidence actively conflicts with claim
     """
     parsed = candidate.parsed_candidate_json or {}
     linkedin = candidate.linkedin_profile_json or {}
     github = candidate.github_profile_json or {}
 
-    # Build evidence_map from normalized profile if available, else derive inline
+    # Build evidence map
     profile = candidate.normalized_profile_json or {}
     evidence_map: dict[str, list[str]] = profile.get("evidence_map") or {}
 
-    # If no normalized profile yet, derive evidence map from raw sources
     if not evidence_map:
         from app.services.profile_service import (
             _skills_from_resume,
@@ -662,89 +960,134 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
             _skills_from_github(github),
         )
 
-    all_strengths: list[str] = []
-    all_concerns: list[str] = []
+    # ---- Category scores ----
     all_explanations: list[str] = []
-    all_unsupported: list[str] = []
+    all_concerns: list[str] = []
+    all_strengths: list[str] = []
 
-    # 1. Date consistency (±10)
-    pts_date, expl, conc = _date_consistency_check(parsed, linkedin)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
+    identity_score, identity_expl = _score_identity(parsed, linkedin, github)
+    all_explanations.extend(identity_expl)
 
-    # 2. Title consistency (±10)
-    pts_title, expl, conc = _title_consistency_check(parsed, linkedin)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
+    experience_score, experience_expl = _score_experience(
+        parsed, linkedin, evidence_map
+    )
+    all_explanations.extend(experience_expl)
 
-    # 3. Deep evidence check
-    expl, conc, deep_unsupported = _deep_evidence_check(github, evidence_map)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
-    for skill in deep_unsupported:
-        if skill in evidence_map and "github" in evidence_map[skill]:
-            evidence_map[skill].remove("github")
+    technical_score, technical_expl, skill_classification = (
+        _score_technical_evidence(evidence_map)
+    )
+    all_explanations.extend(technical_expl)
 
-    # 4. Skill evidence (0-40)
-    pts_skill, expl, conc, unsupported = _skill_evidence_check(evidence_map)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
-    all_unsupported.extend(unsupported)
+    timeline_score, timeline_expl, timeline_concerns = _score_timeline(
+        parsed, linkedin
+    )
+    all_explanations.extend(timeline_expl)
+    all_concerns.extend(timeline_concerns)
 
-    verification_score = max(0, min(pts_skill + pts_date + pts_title, 40))
+    github_score, github_expl = _score_github_verification(github, evidence_map)
+    all_explanations.extend(github_expl)
 
-    # 5. Activity signals (0-15)
-    activity_pts, expl, conc = _generate_activity_signals(github)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
+    # Deep evidence check (informational — does NOT feed into scoring
+    # because "not found in GitHub" is unverified, not contradicted)
+    deep_expl, deep_conc, _ = _deep_evidence_check(github, evidence_map)
+    all_explanations.extend(deep_expl)
+    all_concerns.extend(deep_conc)
 
-    # 6. Career signals (0-15)
-    career_pts, expl, conc = _generate_career_signals(parsed, linkedin)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
+    # ---- Weighted final score ----
+    final_score_raw = (
+        identity_score * _CATEGORY_WEIGHTS["identity"]
+        + experience_score * _CATEGORY_WEIGHTS["experience"]
+        + technical_score * _CATEGORY_WEIGHTS["technical_evidence"]
+        + timeline_score * _CATEGORY_WEIGHTS["timeline"]
+        + github_score * _CATEGORY_WEIGHTS["github_verification"]
+    )
+    final_score = int(round(min(max(final_score_raw, 0), 100)))
 
-    # 7. Learning signals (0-10)
-    learning_pts, expl, conc = _generate_learning_signals(parsed, linkedin, evidence_map)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
+    # ---- Removed behavioral insights ----
 
-    # 8. Ownership signals (0-15)
-    ownership_pts, expl, conc = _generate_ownership_signals(github)
-    all_explanations.extend(expl)
-    all_concerns.extend(conc)
+    # ---- Build human-readable reasoning ----
+    verified_count = len(skill_classification.get("verified", {}))
+    unverified_count = len(skill_classification.get("unverified", {}))
+    contradicted_count = len(skill_classification.get("contradicted", {}))
 
-    if len(evidence_map) > 5:
-        all_strengths.append(
-            f"Strong evidence portfolio: {len(evidence_map)} skills with source attribution"
+    if verified_count:
+        all_strengths.insert(
+            0, f"{verified_count} skills verified across multiple sources"
         )
+    if linkedin:
+        all_strengths.append("LinkedIn profile connected")
+    if github:
+        all_strengths.append("GitHub profile connected")
 
-    det_score = verification_score + activity_pts + career_pts + learning_pts + ownership_pts
-    det_score = max(0, min(det_score, 95))
+    reasoning_parts: list[str] = []
+    if all_strengths:
+        reasoning_parts.append("Strengths: " + "; ".join(all_strengths[:4]))
+    if all_concerns:
+        reasoning_parts.append("Concerns: " + "; ".join(all_concerns[:4]))
+    if contradicted_count:
+        names = ", ".join(skill_classification["contradicted"].keys())
+        reasoning_parts.append(f"Contradicted claims: {names}")
+    det_reasoning = ". ".join(reasoning_parts)
 
-    # 9. LLM review (0-5 pts, only if Gemini works)
-    llm_pts, llm_review = _llm_consistency_review(candidate)
-    all_concerns.extend(llm_review.get("llm_concerns") or [])
-    all_strengths.extend(llm_review.get("llm_strengths") or [])
+    full_reasoning = f"Score: {final_score}/100. {det_reasoning}"
 
-    final_score = min(det_score + llm_pts, 100)
-
-    behavioral_insights = _generate_behavioral_insights(candidate)
+    # Risk level
+    if final_score >= 70:
+        risk_level = "LOW"
+    elif final_score >= 50:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "HIGH"
 
     return {
         "trust_score": final_score,
+        "reasoning": full_reasoning,
+        "risk_level": risk_level,
+        "categories": {
+            "identity": {
+                "score": identity_score,
+                "weight": "20%",
+                "explanations": identity_expl,
+            },
+            "experience": {
+                "score": experience_score,
+                "weight": "20%",
+                "explanations": experience_expl,
+            },
+            "technical_evidence": {
+                "score": technical_score,
+                "weight": "25%",
+                "explanations": technical_expl,
+            },
+            "timeline": {
+                "score": timeline_score,
+                "weight": "10%",
+                "explanations": timeline_expl,
+                "concerns": timeline_concerns,
+            },
+            "github_verification": {
+                "score": github_score,
+                "weight": "20%",
+                "explanations": github_expl,
+            },
+        },
+        "skill_classification": {
+            "verified": skill_classification.get("verified", {}),
+            "unverified": skill_classification.get("unverified", {}),
+            "contradicted": skill_classification.get("contradicted", {}),
+        },
         "score_breakdown": {
-            "verification_score": verification_score,
-            "activity_score": activity_pts,
-            "career_progression_score": career_pts,
-            "learning_score": learning_pts,
-            "ownership_score": ownership_pts,
-            "llm_score": llm_pts
+            "identity_score": identity_score,
+            "experience_score": experience_score,
+            "technical_evidence_score": technical_score,
+            "timeline_score": timeline_score,
+            "github_verification_score": github_score,
         },
         "strengths": all_strengths,
         "concerns": all_concerns,
-        "unsupported_claims": all_unsupported,
+        "unsupported_claims": list(
+            skill_classification.get("unverified", {}).keys()
+        ),
         "evidence": evidence_map,
         "explanations": all_explanations,
-        "llm_review": llm_review,
-        "behavioral_insights": behavioral_insights,
     }

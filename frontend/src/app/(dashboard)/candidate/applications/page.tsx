@@ -4,20 +4,19 @@ import { useMyApplications } from "@/hooks/useApplications";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Building2, Calendar, Clock, AlertCircle } from "lucide-react";
+import { FileText, Building2, Calendar, Clock, AlertCircle, CheckCircle2, Circle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useJobs } from "@/hooks/useJobs";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { PlayCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function CandidateApplicationsPage() {
   const { data: applications, isLoading, isError } = useMyApplications();
 
-  // We might want to fetch job details for each application to show job title and company.
-  // We can just fetch the list of all jobs without pagination to map them, 
-  // or we can rely on the backend returning job_title/company inside the application payload.
-  // Currently, the backend returns job_id but not the job details inside /applications/me.
-  // Wait, let's fetch jobs data to match them up, or just display the Application details.
-  // To keep it simple and fast, we'll fetch jobs and map them.
-  const { data: jobsData } = useJobs({ page_size: 100 });
+  // We now receive job_title and company directly from the /applications/me payload.
+  const router = useRouter();
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -51,20 +50,18 @@ export default function CandidateApplicationsPage() {
       ) : (
         <div className="grid gap-6">
           {applications?.map((app) => {
-            const matchedJob = jobsData?.data.find(j => j.id === app.job_id);
-            
             return (
               <Card key={app.id} className="bg-white dark:bg-slate-900 hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="text-xl">
-                        {matchedJob ? matchedJob.title : `Job #${app.job_id}`}
+                        {app.job_title || `Job #${app.job_id}`}
                       </CardTitle>
-                      {matchedJob && (
+                      {app.company && (
                         <CardDescription className="flex items-center gap-1.5 mt-2 font-medium text-slate-700 dark:text-slate-300">
                           <Building2 className="h-4 w-4" />
-                          {matchedJob.company}
+                          {app.company}
                         </CardDescription>
                       )}
                     </div>
@@ -105,6 +102,81 @@ export default function CandidateApplicationsPage() {
                       </p>
                     </div>
                   )}
+
+                  {/* Visual Timeline */}
+                  <div className="mt-8 pt-6 border-t border-border">
+                    <div className="flex items-center justify-between relative">
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-100 dark:bg-slate-800 -z-10 rounded-full" />
+                      
+                      {/* Step 1: Applied */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        <CheckCircle2 className="w-6 h-6 text-primary fill-primary/20" />
+                        <span className="text-xs font-semibold">Applied</span>
+                      </div>
+                      
+                      {/* Step 2: AI Screening */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        {app.match_score !== null ? (
+                          <CheckCircle2 className="w-6 h-6 text-primary fill-primary/20" />
+                        ) : app.status === "rejected" ? (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                        )}
+                        <span className="text-xs font-semibold text-center">
+                          AI Screening
+                        </span>
+                      </div>
+                      
+                      {/* Step 3: Assessment Completed */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        {app.status === "shortlisted" || app.status === "hired" || app.status === "interview" || app.status === "reviewed" ? (
+                          <CheckCircle2 className="w-6 h-6 text-primary fill-primary/20" />
+                        ) : app.status === "rejected" ? (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        ) : (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        )}
+                        <span className="text-xs font-semibold text-center">
+                          Assessment<br/>Completed
+                        </span>
+                      </div>
+                      
+                      {/* Step 4: Decision (Shortlisted) */}
+                      <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
+                        {app.status === "shortlisted" || app.status === "hired" || app.status === "interview" ? (
+                          <CheckCircle2 className="w-6 h-6 text-emerald-500 fill-emerald-500/20" />
+                        ) : app.status === "rejected" ? (
+                          <AlertCircle className="w-6 h-6 text-red-500 fill-red-500/20" />
+                        ) : (
+                          <Circle className="w-6 h-6 text-muted-foreground" />
+                        )}
+                        <span className="text-xs font-semibold text-center">
+                          {app.status === "rejected" ? "Rejected" : "Shortlisted"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-end gap-3">
+                    {(app.status === "rejected" || app.status === "hired") && (
+                      <Button 
+                        onClick={() => router.push(`/candidate/applications/${app.id}/report`)}
+                        variant="outline"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        View Feedback
+                      </Button>
+                    )}
+                    {app.status !== "rejected" && app.status !== "hired" && (
+                      <Button 
+                        onClick={() => router.push(`/candidate/applications/${app.id}/assessment/lobby`)}
+                        variant="default"
+                      >
+                        <PlayCircle className="w-4 h-4 mr-2" />
+                        Take Assessment
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );

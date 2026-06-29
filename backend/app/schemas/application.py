@@ -27,6 +27,8 @@ class ApplicationResponse(BaseModel):
     id: int
     job_id: int
     candidate_id: int
+    job_title: str = ""
+    company: str = ""
     status: ApplicationStatus
     match_score: float
     match_summary: str

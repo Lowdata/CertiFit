@@ -61,7 +61,7 @@ def analyze_screening_answers(questions: list[dict], answers: dict) -> dict:
             "gaps": data.get("gaps", []),
             "summary": data.get("summary", "Answers evaluated.")
         }
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to analyze screening answers")
         return {
             "score_modifier": 0.0,

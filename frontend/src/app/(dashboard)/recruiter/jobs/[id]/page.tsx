@@ -40,6 +40,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   applied: { label: "Applied", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400", icon: <Clock className="h-3.5 w-3.5" /> },
   reviewed: { label: "Reviewed", color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400", icon: <Eye className="h-3.5 w-3.5" /> },
@@ -62,8 +70,13 @@ export default function RecruiterJobDetailPage() {
   const { mutate: updateJobStatus, isPending: isUpdatingStatus } = useUpdateJobStatus();
 
   const [expandedApp, setExpandedApp] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const applications = applicationsData?.data ?? [];
+  const filteredApplications = statusFilter === "all" 
+    ? applications 
+    : applications.filter(app => app.status === statusFilter);
+    
   const parsedJd = job?.parsed_jd as Record<string, any> | undefined;
 
   const handleDelete = () => {
@@ -242,33 +255,47 @@ export default function RecruiterJobDetailPage() {
 
       {/* Applications */}
       <Card className="bg-white dark:bg-slate-900 border-border">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <CardTitle className="text-lg flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600" />
             Applicants
             {!appsLoading && (
               <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({applications.length})
+                ({filteredApplications.length})
               </span>
             )}
           </CardTitle>
+          <div className="w-full sm:w-48">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {ALL_STATUSES.map(status => (
+                  <SelectItem key={status} value={status}>
+                    {STATUS_CONFIG[status]?.label || status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {appsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : applications.length === 0 ? (
+          ) : filteredApplications.length === 0 ? (
             <div className="text-center py-12 space-y-2">
               <Users className="h-10 w-10 mx-auto text-muted-foreground/30" />
               <p className="text-muted-foreground">
-                No applications yet. Candidates will appear here once they
-                apply.
+                No applications match your filter.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {applications.map((app) => {
+              {filteredApplications.map((app) => {
                 const status = STATUS_CONFIG[app.status] ?? STATUS_CONFIG.applied;
                 const candidateName =
                   (app.candidate.parsed_candidate as Record<string, unknown>)?.name as string ?? "Unknown Candidate";

@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
-from app.models.application import Application
+from app.models.application import Application, AIStatus
 from app.models.job import Job
 from app.models.candidate import Candidate
 from app.services.application_service import calculate_match, _composite_score, _build_score_explanations
@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 def process_application_scoring_background(application_id: int):
     """
-    Background task to calculate match and trust scores for an application.
+    Background task to calculate deterministic match and trust scores 
+    for an application, then queue it for the unified AI evaluation.
     """
     db: Session = SessionLocal()
     try:
@@ -27,26 +28,18 @@ def process_application_scoring_background(application_id: int):
             logger.error(f"Job or Candidate missing for application {application_id}.")
             return
 
-        # Calculate fit using LLM
+        # 1. Deterministic Match Score (Keyword overlap)
         match = calculate_match(
             job=job,
             candidate=candidate
         )
-        from app.services.llm_screening_analyzer import analyze_screening_answers
-        screening_eval = analyze_screening_answers(
-            questions=job.screening_questions,
-            answers=application.screening_answers
-        )
-
-        match["score"] += screening_eval["score_modifier"]
-        match["score"] = max(0.0, min(100.0, match["score"]))
-        match["strengths"].extend(screening_eval["strengths"])
-        match["gaps"].extend(screening_eval["gaps"])
-        match["summary"] += " " + screening_eval["summary"]
-
+        
+        # We NO LONGER run LLM screening evaluation here. 
+        # The AI worker handles that.
+        
         fit = match["score"]
 
-        # Trust score
+        # 2. Deterministic Trust Score
         try:
             trust_data = calculate_trust_score(candidate)
             trust = float(trust_data.get("trust_score") or 0)
@@ -55,6 +48,7 @@ def process_application_scoring_background(application_id: int):
             trust_data = {}
             trust = 0.0
 
+        # Build initial explanations based ONLY on deterministic data
         composite = _composite_score(fit, trust)
         score_explanations = _build_score_explanations(
             fit_score=fit,
@@ -64,7 +58,10 @@ def process_application_scoring_background(application_id: int):
             trust_data=trust_data,
             profile=getattr(candidate, "normalized_profile_json", None) or {},
         )
-
+        
+        application.baseline_fit = fit
+        
+        # Persist deterministic baseline scores
         application.match_score = fit
         application.match_summary = match["summary"]
         application.strengths_json = match["strengths"]
@@ -73,9 +70,16 @@ def process_application_scoring_background(application_id: int):
         application.trust_score = trust
         application.composite_score = composite
         application.score_explanations = score_explanations
+        
+        # Persist trust data to the candidate model
+        if trust_data:
+            candidate.trust_score_json = trust_data
 
+        # 3. Queue for Unified AI Evaluation
+        application.ai_status = AIStatus.QUEUED
+        
         db.commit()
-        logger.info(f"Background scoring completed for application {application_id}")
+        logger.info(f"Deterministic scoring completed for application {application_id}. Queued for AI.")
     except Exception as e:
         db.rollback()
         logger.exception(f"Failed to process background scoring for application {application_id}: {e}")

@@ -127,7 +127,7 @@ def delete_me(
         current_user.user_type = -1
         
         db.commit()
-    except Exception as e:
+    except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete account")
         

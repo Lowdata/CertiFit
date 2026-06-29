@@ -112,120 +112,56 @@ def calculate_match(
     job: Job,
     candidate: Candidate
 ):
-
     job_data = job.parsed_jd_json or {}
-    candidate_data = candidate.parsed_candidate_json or {}
-
-    required_skills = _as_set(
-        job_data.get("required_skills", [])
-    )
-    inferred_skills = _as_set(
-        job_data.get("inferred_skills", [])
-    )
-    candidate_skills = _as_set(
-        _candidate_skill_terms(candidate)
-    )
-
-    job_tech = _as_set(
-        _tech_values(job_data.get("tech_stack", {}))
-    )
-
-    profile = getattr(candidate, "normalized_profile_json", None) or {}
-    if profile.get("skills"):
-        # Normalized profile already flattens tech_stack into its canonical
-        # skills list across resume + LinkedIn + GitHub.
-        candidate_tech = _as_set(profile.get("skills"))
-    else:
-        candidate_tech = _as_set(
-            _tech_values(candidate_data.get("tech_stack", {}))
-        )
-
-    required_skill_matches = required_skills.intersection(
-        candidate_skills
-    )
-    inferred_skill_matches = inferred_skills.intersection(
-        candidate_skills
-    )
-    tech_matches = job_tech.intersection(
-        candidate_tech
-    )
-
-    required_skill_score = 0
+    candidate_skills = _as_set(_candidate_skill_terms(candidate))
+    
+    required_skills = _as_set(job_data.get("required_skills", []))
+    preferred_skills = _as_set(job_data.get("preferred_skills", []))
+    
+    score = 0.0
+    strengths = []
+    gaps = []
+    
+    # Simple overlap for required skills
     if required_skills:
-        required_skill_score = (
-            len(required_skill_matches) / len(required_skills)
-        ) * 50
+        overlap = required_skills & candidate_skills
+        missing = required_skills - candidate_skills
+        req_score = (len(overlap) / len(required_skills)) * 60.0
+        score += req_score
+        
+        if overlap:
+            strengths.append(f"Matches {len(overlap)} required skills")
+        if missing:
+            gaps.append(f"Missing {len(missing)} required skills")
+            
+    # Simple overlap for preferred skills
+    if preferred_skills:
+        overlap = preferred_skills & candidate_skills
+        pref_score = (len(overlap) / len(preferred_skills)) * 40.0
+        score += pref_score
+        
+        if overlap:
+            strengths.append(f"Matches {len(overlap)} preferred skills")
 
-    inferred_skill_score = 0
-    if inferred_skills:
-        inferred_skill_score = (
-            len(inferred_skill_matches) / len(inferred_skills)
-        ) * 10
-
-    tech_score = 0
-    if job_tech:
-        tech_score = (
-            len(tech_matches) / len(job_tech)
-        ) * 25
-
-    required_years = job_data.get(
-        "experience_years",
-        0
-    ) or 0
-    candidate_years = candidate_data.get(
-        "years_experience",
-        0
-    ) or 0
-
-    experience_score = 15
-    if required_years:
-        experience_score = min(
-            candidate_years / required_years,
-            1
-        ) * 15
-
-    score = round(
-        min(
-            required_skill_score
-            + inferred_skill_score
-            + tech_score
-            + experience_score,
-            100
-        ),
-        2
-    )
-
-    strengths = sorted(
-        required_skill_matches.union(inferred_skill_matches, tech_matches)
-    )
-    gaps = sorted(
-        required_skills.difference(candidate_skills)
-    )
-
-    summary = (
-        f"Score {score}: required skills "
-        f"{len(required_skill_matches)}/{len(required_skills)}, "
-        f"inferred skills {len(inferred_skill_matches)}/{len(inferred_skills)}, "
-        f"tech {len(tech_matches)}/{len(job_tech)}, "
-        f"experience {candidate_years}/{required_years or 0} years"
-    )
+    score = min(100.0, score)
 
     return {
         "score": score,
-        "summary": summary,
+        "summary": "Deterministic keyword match calculation.",
         "strengths": strengths,
-        "gaps": gaps
+        "gaps": gaps,
+        "raw_scores": {
+            "required_skills_score": req_score if required_skills else 0,
+            "preferred_skills_score": pref_score if preferred_skills else 0,
+        }
     }
 
 
 def _composite_score(fit_score: float, trust_score: float) -> float:
     """
-    composite = fit * (0.6 + 0.4 * (trust / 100))
-    Range: 0-100. Deterministic, no rounding quirks.
+    Deprecated: Do not mix Trust and Fit. Return Fit directly.
     """
-    normalised_trust = max(0.0, min(trust_score, 100.0)) / 100.0
-    raw = fit_score * (0.6 + 0.4 * normalised_trust)
-    return round(min(raw, 100.0), 2)
+    return round(fit_score, 2)
 
 
 def _build_score_explanations(
@@ -388,15 +324,6 @@ def update_application_status(
     if status == application.status:
         return application
 
-    allowed_next_statuses = APPLICATION_STATUS_TRANSITIONS.get(
-        application.status,
-        set()
-    )
-
-    if status not in allowed_next_statuses:
-        raise InvalidApplicationStatusTransitionError(
-            f"Cannot move application from {application.status} to {status}"
-        )
 
     application.status = status
     application.updated_at = datetime.now(UTC)

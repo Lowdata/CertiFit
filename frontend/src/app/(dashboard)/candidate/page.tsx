@@ -8,9 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Building2, Calendar, Briefcase, ArrowRight, Activity, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
+import { FileText, Building2, Calendar, Briefcase, ArrowRight, Activity, CheckCircle2, AlertCircle, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import { Progress } from "@/components/ui/progress";
 
 export default function CandidateDashboard() {
   const { user } = useAuthStore();
@@ -66,14 +67,19 @@ export default function CandidateDashboard() {
 
         <Card className="bg-white dark:bg-slate-900 border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Trust Score</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Match Score</CardTitle>
+            <TrendingUp className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {profileLoading ? <Skeleton className="h-8 w-16" /> : (profileResponse?.trust_score ? `${profileResponse.trust_score}%` : "N/A")}
+              {appsLoading ? <Skeleton className="h-8 w-16" /> : (() => {
+                const scored = (applications || []).filter(a => a.match_score != null);
+                if (scored.length === 0) return "N/A";
+                const avg = scored.reduce((sum, a) => sum + (a.match_score ?? 0), 0) / scored.length;
+                return `${Math.round(avg)}%`;
+              })()}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Based on verified history</p>
+            <p className="text-xs text-muted-foreground mt-1">Across your applications</p>
           </CardContent>
         </Card>
 
@@ -83,13 +89,14 @@ export default function CandidateDashboard() {
             <Activity className="h-4 w-4 text-slate-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{profileLoading ? <Skeleton className="h-8 w-16" /> : `${completeness}%`}</div>
+            <div className="text-3xl font-bold mb-3">{profileLoading ? <Skeleton className="h-8 w-16" /> : `${completeness}%`}</div>
+            <Progress value={completeness} className="h-2 w-full mb-3" />
             {completeness === 100 ? (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="h-3 w-3" /> All-Star Profile
               </p>
             ) : (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+              <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" /> Connect more sources
               </p>
             )}
@@ -140,19 +147,18 @@ export default function CandidateDashboard() {
               </Card>
             ) : (
               recentApps.map((app) => {
-                const matchedJob = jobsResponse?.data.find(j => j.id === app.job_id);
                 return (
                   <Card key={app.id} className="bg-white dark:bg-slate-900 overflow-hidden transition-all hover:shadow-md">
                     <CardHeader className="p-5 pb-4">
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-lg leading-tight">
-                            {matchedJob ? matchedJob.title : `Job #${app.job_id}`}
+                            {app.job_title || `Job #${app.job_id}`}
                           </CardTitle>
-                          {matchedJob && (
+                          {app.company && (
                             <CardDescription className="flex items-center gap-1.5 mt-1.5 text-slate-600">
                               <Building2 className="h-3.5 w-3.5" />
-                              {matchedJob.company}
+                              {app.company}
                             </CardDescription>
                           )}
                         </div>
@@ -186,6 +192,65 @@ export default function CandidateDashboard() {
                   </Card>
                 );
               })
+            )}
+          </div>
+        </div>
+
+        {/* Action Items & Trust */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground tracking-tight">Action Items</h2>
+          <div className="grid gap-3">
+            {!profileResponse?.github_profile && (
+              <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                    <AlertCircle className="w-4 h-4" /> Missing Evidence
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mb-3">
+                    Connect your GitHub account to instantly boost your trust score and verify technical skills.
+                  </p>
+                  <Link href="/candidate/profile">
+                    <Button variant="outline" size="sm" className="w-full text-amber-700 border-amber-300 hover:bg-amber-100">
+                      Connect GitHub
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            )}
+            {!profileResponse?.linkedin_profile && (
+              <Card className="bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-400">
+                    <AlertCircle className="w-4 h-4" /> Missing Evidence
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <p className="text-xs text-blue-700/80 dark:text-blue-400/80 mb-3">
+                    Connect your LinkedIn profile to verify your work history and boost recruiter confidence.
+                  </p>
+                  <Link href="/candidate/profile">
+                    <Button variant="outline" size="sm" className="w-full text-blue-700 border-blue-300 hover:bg-blue-100">
+                      Connect LinkedIn
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            )}
+            {completeness === 100 && (
+              <Card className="bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-emerald-800 dark:text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4" /> Looking Good
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                    Your profile is fully connected and optimized for high trust scores. Great job!
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>

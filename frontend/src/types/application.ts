@@ -1,8 +1,10 @@
 export interface Application {
   id: number;
   job_id: number;
+  job_title?: string;
+  company?: string;
   candidate_id: number;
-  status: "applied" | "shortlisted" | "rejected" | "hired";
+  status: "applied" | "shortlisted" | "rejected" | "hired" | "interview" | "reviewed";
   match_score: number | null;
   match_summary: string | null;
   composite_score: number | null;
