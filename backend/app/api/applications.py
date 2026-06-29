@@ -12,6 +12,8 @@ from app.schemas.application import ApplicationResponse
 from app.schemas.application import ApplicationListResponse
 from app.schemas.application import ApplicationStatusUpdateRequest
 from app.schemas.application import CandidateReportResponse
+from app.models.job import Job
+from app.models.application import Application
 from app.services.application_service import (
     ApplicationNotFoundError,
     InvalidApplicationStatusTransitionError,
@@ -26,11 +28,13 @@ from app.services.candidate_service import (
 router = APIRouter()
 
 
-def _application_summary(application):
+def _application_summary(application, job_title="", company=""):
 
     return {
         "id": application.id,
         "job_id": application.job_id,
+        "job_title": job_title,
+        "company": company,
         "candidate_id": application.candidate_id,
         "status": application.status,
         "match_score": application.match_score,
@@ -61,15 +65,17 @@ def list_my_applications(
             detail="Candidate profile not found"
         )
 
-    applications = get_applications_for_candidate(
-        db=db,
-        candidate_id=candidate.id
+    applications_with_jobs = (
+        db.query(Application, Job)
+        .join(Job, Application.job_id == Job.id)
+        .filter(Application.candidate_id == candidate.id)
+        .all()
     )
 
     return {
         "data": [
-            _application_summary(application)
-            for application in applications
+            _application_summary(application, job.title, job.company)
+            for application, job in applications_with_jobs
         ]
     }
 
@@ -103,8 +109,10 @@ def change_application_status(
             status_code=400,
             detail=str(e)
         )
+        
+    job = db.query(Job).filter(Job.id == application.job_id).first()
 
-    return _application_summary(application)
+    return _application_summary(application, job.title if job else "", job.company if job else "")
 
 
 @router.get("/{application_id}/candidate-report", response_model=CandidateReportResponse)

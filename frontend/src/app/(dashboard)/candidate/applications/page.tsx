@@ -15,13 +15,7 @@ import { cn } from "@/lib/utils";
 export default function CandidateApplicationsPage() {
   const { data: applications, isLoading, isError } = useMyApplications();
 
-  // We might want to fetch job details for each application to show job title and company.
-  // We can just fetch the list of all jobs without pagination to map them, 
-  // or we can rely on the backend returning job_title/company inside the application payload.
-  // Currently, the backend returns job_id but not the job details inside /applications/me.
-  // Wait, let's fetch jobs data to match them up, or just display the Application details.
-  // To keep it simple and fast, we'll fetch jobs and map them.
-  const { data: jobsData } = useJobs({ page_size: 100 });
+  // We now receive job_title and company directly from the /applications/me payload.
   const router = useRouter();
 
   return (
@@ -56,20 +50,18 @@ export default function CandidateApplicationsPage() {
       ) : (
         <div className="grid gap-6">
           {applications?.map((app) => {
-            const matchedJob = jobsData?.data.find(j => j.id === app.job_id);
-            
             return (
               <Card key={app.id} className="bg-white dark:bg-slate-900 hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="text-xl">
-                        {matchedJob ? matchedJob.title : `Job #${app.job_id}`}
+                        {app.job_title || `Job #${app.job_id}`}
                       </CardTitle>
-                      {matchedJob && (
+                      {app.company && (
                         <CardDescription className="flex items-center gap-1.5 mt-2 font-medium text-slate-700 dark:text-slate-300">
                           <Building2 className="h-4 w-4" />
-                          {matchedJob.company}
+                          {app.company}
                         </CardDescription>
                       )}
                     </div>
@@ -136,9 +128,9 @@ export default function CandidateApplicationsPage() {
                         </span>
                       </div>
                       
-                      {/* Step 3: Interview */}
+                      {/* Step 3: Assessment Completed */}
                       <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
-                        {app.status === "shortlisted" || app.status === "hired" ? (
+                        {app.status === "shortlisted" || app.status === "hired" || app.status === "interview" || app.status === "reviewed" ? (
                           <CheckCircle2 className="w-6 h-6 text-primary fill-primary/20" />
                         ) : app.status === "rejected" ? (
                           <Circle className="w-6 h-6 text-muted-foreground" />
@@ -146,13 +138,13 @@ export default function CandidateApplicationsPage() {
                           <Circle className="w-6 h-6 text-muted-foreground" />
                         )}
                         <span className="text-xs font-semibold text-center">
-                          Interview
+                          Assessment<br/>Completed
                         </span>
                       </div>
                       
-                      {/* Step 4: Decision */}
+                      {/* Step 4: Decision (Shortlisted) */}
                       <div className="flex flex-col items-center gap-2 bg-white dark:bg-slate-900 px-2">
-                        {app.status === "hired" ? (
+                        {app.status === "shortlisted" || app.status === "hired" || app.status === "interview" ? (
                           <CheckCircle2 className="w-6 h-6 text-emerald-500 fill-emerald-500/20" />
                         ) : app.status === "rejected" ? (
                           <AlertCircle className="w-6 h-6 text-red-500 fill-red-500/20" />
@@ -160,7 +152,7 @@ export default function CandidateApplicationsPage() {
                           <Circle className="w-6 h-6 text-muted-foreground" />
                         )}
                         <span className="text-xs font-semibold text-center">
-                          {app.status === "rejected" ? "Rejected" : "Offer"}
+                          {app.status === "rejected" ? "Rejected" : "Shortlisted"}
                         </span>
                       </div>
                     </div>

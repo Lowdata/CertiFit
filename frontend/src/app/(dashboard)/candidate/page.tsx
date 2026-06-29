@@ -147,19 +147,18 @@ export default function CandidateDashboard() {
               </Card>
             ) : (
               recentApps.map((app) => {
-                const matchedJob = jobsResponse?.data.find(j => j.id === app.job_id);
                 return (
                   <Card key={app.id} className="bg-white dark:bg-slate-900 overflow-hidden transition-all hover:shadow-md">
                     <CardHeader className="p-5 pb-4">
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-lg leading-tight">
-                            {matchedJob ? matchedJob.title : `Job #${app.job_id}`}
+                            {app.job_title || `Job #${app.job_id}`}
                           </CardTitle>
-                          {matchedJob && (
+                          {app.company && (
                             <CardDescription className="flex items-center gap-1.5 mt-1.5 text-slate-600">
                               <Building2 className="h-3.5 w-3.5" />
-                              {matchedJob.company}
+                              {app.company}
                             </CardDescription>
                           )}
                         </div>

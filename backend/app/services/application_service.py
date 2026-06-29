@@ -324,15 +324,6 @@ def update_application_status(
     if status == application.status:
         return application
 
-    allowed_next_statuses = APPLICATION_STATUS_TRANSITIONS.get(
-        application.status,
-        set()
-    )
-
-    if status not in allowed_next_statuses:
-        raise InvalidApplicationStatusTransitionError(
-            f"Cannot move application from {application.status} to {status}"
-        )
 
     application.status = status
     application.updated_at = datetime.now(UTC)

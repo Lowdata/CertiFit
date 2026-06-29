@@ -18,7 +18,7 @@ export default function CandidateReportPage() {
     queryKey: ["application", applicationId],
     queryFn: async () => {
       const { data } = await api.get(`/applications/me`);
-      return data.find((app: any) => app.id === parseInt(applicationId));
+      return data.data.find((app: any) => app.id === parseInt(applicationId));
     },
   });
 
