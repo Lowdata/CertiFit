@@ -24,6 +24,9 @@ export default function AssessmentRoomPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const hasStarted = useRef(false);
+  
+  const [prepTimeLeft, setPrepTimeLeft] = useState(30);
+  const [recordingTimeLeft, setRecordingTimeLeft] = useState(60);
 
   const startAssessmentMut = useStartAssessment();
   const presignedUrlMut = usePresignedUrl();
@@ -93,6 +96,9 @@ export default function AssessmentRoomPage() {
       
       // 5. Cleanup and proceed
       clearBlobUrl();
+      // Reset timers for the next question
+      setPrepTimeLeft(30);
+      setRecordingTimeLeft(60);
       await refetchQuestion();
       
     } catch (err: any) {
@@ -102,6 +108,47 @@ export default function AssessmentRoomPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Timer logic for prep and recording
+  useEffect(() => {
+    let timerId: NodeJS.Timeout;
+
+    if (currentQuestionData?.question && status !== "recording" && !mediaBlobUrl && !isSubmitting) {
+      // Prep phase
+      timerId = setInterval(() => {
+        setPrepTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerId);
+            startRecording();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (status === "recording") {
+      // Recording phase
+      timerId = setInterval(() => {
+        setRecordingTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerId);
+            stopRecording();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => clearInterval(timerId);
+  }, [currentQuestionData?.question, status, mediaBlobUrl, isSubmitting, startRecording, stopRecording]);
+
+  // Auto-submit when recording is available
+  useEffect(() => {
+    if (mediaBlobUrl && !isSubmitting && currentQuestionData?.question?.id) {
+      handleSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaBlobUrl, isSubmitting, currentQuestionData?.question?.id]);
 
   if (isInitializing) {
     return (
@@ -187,31 +234,30 @@ export default function AssessmentRoomPage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                {status !== "recording" && !mediaBlobUrl ? (
+                {status !== "recording" && !mediaBlobUrl && !isSubmitting && (
                   <Button onClick={startRecording} size="lg" className="w-full sm:w-auto gap-2">
                     <Video className="w-5 h-5" />
-                    Start Recording
+                    Start Recording ({prepTimeLeft}s)
                   </Button>
-                ) : status === "recording" ? (
+                )}
+                {status === "recording" && (
                   <Button onClick={stopRecording} size="lg" variant="destructive" className="w-full sm:w-auto gap-2">
                     <Square className="w-5 h-5" />
-                    Stop Recording
+                    Stop Recording ({recordingTimeLeft}s)
                   </Button>
-                ) : (
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <Button onClick={clearBlobUrl} variant="outline" size="lg" disabled={isSubmitting}>
-                      Retake
-                    </Button>
-                    <Button onClick={handleSubmit} size="lg" disabled={isSubmitting} className="gap-2">
-                      {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-5 h-5" />}
-                      {isSubmitting ? "Submitting..." : "Submit Answer"}
-                    </Button>
-                  </div>
+                )}
+                {(isSubmitting || mediaBlobUrl) && (
+                  <Button disabled size="lg" className="gap-2 w-full sm:w-auto">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Submitting...
+                  </Button>
                 )}
               </div>
               
               <div className="text-sm text-muted-foreground">
-                Ensure your face is visible and microphone is unmuted.
+                {status === "recording" 
+                  ? "Recording in progress. Max duration 1 minute." 
+                  : "Ensure your face is visible and microphone is unmuted."}
               </div>
             </div>
           </CardContent>
