@@ -21,9 +21,6 @@ from app.schemas.candidate import (
     GitHubProfileRequest,
     GitHubProfileResponse,
     LinkedInProfileResponse,
-    NormalizedProfileResponse,
-    TrustScoreResponse,
-    RebuildProfileResponse,
 )
 from app.services.candidate_service import (
     create_candidate,

@@ -1,4 +1,3 @@
-import pytest
 
 def test_create_and_get_company(client, db_session):
     # Register/Login a recruiter

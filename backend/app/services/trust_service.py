@@ -421,7 +421,7 @@ def _generate_activity_signals(github: dict) -> tuple[int, list[str], list[str]]
         explanations.append(f"Strong recent activity: {recent_count} events in last 90 days")
     elif recent_count > 0:
         pts += 5
-        explanations.append(f"Recent GitHub activity detected")
+        explanations.append("Recent GitHub activity detected")
 
     languages = github.get("language_totals") or {}
     if len(languages) >= 3:
@@ -905,21 +905,7 @@ def _score_github_verification(
     return min(max(score, 0), 100), explanations
 
 
-def _score_ai_review(
-    candidate: "Candidate",
-) -> tuple[int, dict[str, Any]]:
-    """
-    AI consistency review (10 % weight).
 
-    Falls back to a neutral 70 when Gemini is unavailable.
-    """
-    _, llm_review = _llm_consistency_review(candidate)
-
-    if llm_review.get("fallback_used"):
-        return 70, llm_review
-
-    raw = llm_review.get("consistency_score", 70)
-    return max(0, min(raw, 100)), llm_review
 
 
 # ---------------------------------------------------------------------------
@@ -929,10 +915,9 @@ def _score_ai_review(
 _CATEGORY_WEIGHTS: dict[str, float] = {
     "identity": 0.20,
     "experience": 0.20,
-    "technical_evidence": 0.25,
+    "technical_evidence": 0.30,
     "timeline": 0.10,
-    "github_verification": 0.15,
-    "ai_review": 0.10,
+    "github_verification": 0.20,
 }
 
 
@@ -944,10 +929,9 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
 
         identity            (20 %)  external profiles, name consistency
         experience          (20 %)  career progression, certifications
-        technical_evidence  (25 %)  skill verification across sources
+        technical_evidence  (30 %)  skill verification across sources
         timeline            (10 %)  date consistency (omission ≠ contradiction)
-        github_verification (15 %)  repo activity, ownership, languages
-        ai_review           (10 %)  LLM cross-source consistency
+        github_verification (20 %)  repo activity, ownership, languages
 
     Skills are classified into three buckets:
 
@@ -1003,10 +987,6 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
     github_score, github_expl = _score_github_verification(github, evidence_map)
     all_explanations.extend(github_expl)
 
-    ai_score, llm_review = _score_ai_review(candidate)
-    all_concerns.extend(llm_review.get("llm_concerns") or [])
-    all_strengths.extend(llm_review.get("llm_strengths") or [])
-
     # Deep evidence check (informational — does NOT feed into scoring
     # because "not found in GitHub" is unverified, not contradicted)
     deep_expl, deep_conc, _ = _deep_evidence_check(github, evidence_map)
@@ -1020,12 +1000,10 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
         + technical_score * _CATEGORY_WEIGHTS["technical_evidence"]
         + timeline_score * _CATEGORY_WEIGHTS["timeline"]
         + github_score * _CATEGORY_WEIGHTS["github_verification"]
-        + ai_score * _CATEGORY_WEIGHTS["ai_review"]
     )
     final_score = int(round(min(max(final_score_raw, 0), 100)))
 
-    # ---- Behavioral insights (separate from scoring) ----
-    behavioral_insights = _generate_behavioral_insights(candidate)
+    # ---- Removed behavioral insights ----
 
     # ---- Build human-readable reasoning ----
     verified_count = len(skill_classification.get("verified", {}))
@@ -1051,10 +1029,7 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
         reasoning_parts.append(f"Contradicted claims: {names}")
     det_reasoning = ". ".join(reasoning_parts)
 
-    llm_reasoning = llm_review.get("reasoning") or ""
     full_reasoning = f"Score: {final_score}/100. {det_reasoning}"
-    if llm_reasoning:
-        full_reasoning += f" LLM Review: {llm_reasoning}"
 
     # Risk level
     if final_score >= 70:
@@ -1092,13 +1067,8 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
             },
             "github_verification": {
                 "score": github_score,
-                "weight": "15%",
+                "weight": "20%",
                 "explanations": github_expl,
-            },
-            "ai_review": {
-                "score": ai_score,
-                "weight": "10%",
-                "reasoning": llm_reasoning,
             },
         },
         "skill_classification": {
@@ -1112,7 +1082,6 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
             "technical_evidence_score": technical_score,
             "timeline_score": timeline_score,
             "github_verification_score": github_score,
-            "ai_review_score": ai_score,
         },
         "strengths": all_strengths,
         "concerns": all_concerns,
@@ -1121,6 +1090,4 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
         ),
         "evidence": evidence_map,
         "explanations": all_explanations,
-        "llm_review": llm_review,
-        "behavioral_insights": behavioral_insights,
     }

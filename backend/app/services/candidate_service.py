@@ -1,7 +1,6 @@
 # app/services/candidate_service.py
 import logging
 import os
-import datetime
 
 from app.models.candidate import Candidate
 

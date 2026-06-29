@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import select
 
 from app.core.dependencies import get_current_candidate, get_current_recruiter, get_db
 from app.models.user import User

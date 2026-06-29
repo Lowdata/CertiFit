@@ -112,97 +112,48 @@ def calculate_match(
     job: Job,
     candidate: Candidate
 ):
-    import json
-    from app.core.config import GEMINI_API_KEY
-    from google import genai
-    from app.services.llm_validation import safe_gemini_call
-
     job_data = job.parsed_jd_json or {}
-    candidate_profile = getattr(candidate, "normalized_profile_json", None) or candidate.parsed_candidate_json or {}
+    candidate_skills = _as_set(_candidate_skill_terms(candidate))
+    
+    required_skills = _as_set(job_data.get("required_skills", []))
+    preferred_skills = _as_set(job_data.get("preferred_skills", []))
+    
+    score = 0.0
+    strengths = []
+    gaps = []
+    
+    # Simple overlap for required skills
+    if required_skills:
+        overlap = required_skills & candidate_skills
+        missing = required_skills - candidate_skills
+        req_score = (len(overlap) / len(required_skills)) * 60.0
+        score += req_score
+        
+        if overlap:
+            strengths.append(f"Matches {len(overlap)} required skills")
+        if missing:
+            gaps.append(f"Missing {len(missing)} required skills")
+            
+    # Simple overlap for preferred skills
+    if preferred_skills:
+        overlap = preferred_skills & candidate_skills
+        pref_score = (len(overlap) / len(preferred_skills)) * 40.0
+        score += pref_score
+        
+        if overlap:
+            strengths.append(f"Matches {len(overlap)} preferred skills")
 
-    prompt = f"""You are an Expert AI Technical Recruiter evaluating a candidate's Fit Score for a job.
-You must move beyond exact keyword matching and perform evidence-weighted semantic matching.
-(e.g., FastAPI experience implies REST API experience; Next.js implies React).
-
-=== JOB DESCRIPTION ===
-{json.dumps(job_data, indent=2)}
-
-=== CANDIDATE PROFILE ===
-{json.dumps(candidate_profile, indent=2)}
-
-=== SCORING CATEGORIES ===
-1. required_skills_score (Max 40): Do they have the required skills or semantic equivalents?
-2. transferable_skills_score (Max 20): Do they have skills that strongly transfer to the job's stack?
-3. projects_score (Max 15): Do their projects demonstrate the required complexity?
-4. experience_score (Max 10): Does their years of experience match the requirements?
-5. ai_reasoning_score (Max 10): Overall AI assessment of their technical depth.
-6. education_score (Max 5): Education match.
-
-Return ONLY valid JSON in this exact shape:
-{{
-  "required_skills_score": <int 0-40>,
-  "transferable_skills_score": <int 0-20>,
-  "projects_score": <int 0-15>,
-  "experience_score": <int 0-10>,
-  "ai_reasoning_score": <int 0-10>,
-  "education_score": <int 0-5>,
-  "strengths": ["<strength 1>", "<strength 2>"],
-  "gaps": ["<gap 1>", "<gap 2>"],
-  "recommendation": "<Actionable recommendation (e.g. Proceed with interview. Probe on AWS)>"
-}}
-"""
-    schema_keys = [
-        "required_skills_score", "transferable_skills_score", "projects_score",
-        "experience_score", "ai_reasoning_score", "education_score",
-        "strengths", "gaps", "recommendation"
-    ]
-
-    def _fallback(reason):
-        error_msg = str(reason)
-        friendly_reason = "AI evaluation is temporarily unavailable. Fallback calculations were used."
-        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-            friendly_reason = "The AI engine is currently experiencing high traffic (API Rate Limit). Fallback calculations were used for this profile."
-
-        return {
-            "required_skills_score": 20,
-            "transferable_skills_score": 10,
-            "projects_score": 5,
-            "experience_score": 5,
-            "ai_reasoning_score": 5,
-            "education_score": 0,
-            "strengths": ["Fallback calculation used"],
-            "gaps": ["LLM evaluation failed"],
-            "recommendation": friendly_reason
-        }
-
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        result, _ = safe_gemini_call(
-            client=client,
-            prompt=prompt,
-            schema_keys=schema_keys,
-            fallback_fn=_fallback,
-            label="fit_score"
-        )
-    except Exception as e:
-        logger.warning(f"Failed to initialize Gemini for fit scoring: {e}")
-        result = _fallback(str(e))
-
-    score = min(100.0, float(
-        result.get("required_skills_score", 0) +
-        result.get("transferable_skills_score", 0) +
-        result.get("projects_score", 0) +
-        result.get("experience_score", 0) +
-        result.get("ai_reasoning_score", 0) +
-        result.get("education_score", 0)
-    ))
+    score = min(100.0, score)
 
     return {
         "score": score,
-        "summary": result.get("recommendation", ""),
-        "strengths": result.get("strengths", []),
-        "gaps": result.get("gaps", []),
-        "raw_scores": result
+        "summary": "Deterministic keyword match calculation.",
+        "strengths": strengths,
+        "gaps": gaps,
+        "raw_scores": {
+            "required_skills_score": req_score if required_skills else 0,
+            "preferred_skills_score": pref_score if preferred_skills else 0,
+        }
     }
 
 

@@ -10,7 +10,6 @@ from app.services.interview_service import (
     _deterministic_verification,
     _deterministic_project,
     _deterministic_risk,
-    _deterministic_leadership,
 )
 
 

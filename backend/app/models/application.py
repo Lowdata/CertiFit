@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 
 from sqlalchemy import CheckConstraint
 from sqlalchemy import DateTime
@@ -16,6 +17,15 @@ from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 
 from app.db.database import Base
+
+
+class AIStatus(str, Enum):
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    RETRYING = "RETRYING"
+    COMPLETE = "COMPLETE"
+    FAILED = "FAILED"
+    CACHED = "CACHED"
 
 
 class Application(Base):
@@ -134,4 +144,44 @@ class Application(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now()
+    )
+
+    ai_status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=True,
+        default=None,
+        index=True
+    )
+
+    ai_retry_after: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    ai_retry_count: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0
+    )
+
+    ai_status_metadata: Mapped[dict | None] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=True
+    )
+
+    ai_input_hash: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True
+    )
+
+    baseline_fit: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0
+    )
+
+    final_fit: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0
     )

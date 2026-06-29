@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Webcam from "react-webcam";
+import dynamic from "next/dynamic";
+const Webcam = dynamic(() => import("react-webcam"), { ssr: false });
 import { useReactMediaRecorder } from "react-media-recorder";
 import { 
   useStartAssessment, 
