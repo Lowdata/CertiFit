@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from fastapi import UploadFile
 from fastapi import File, Query
 from fastapi import Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 
 from sqlalchemy.orm import Session
 
@@ -118,12 +119,13 @@ async def upload_candidate(
 
             buffer.write(content)
 
-        candidate = create_candidate(
-            db=db,
-            user_id=current_user.id,
-            file_path=file_path,
-            file_name=stored_file_name,
-            expected_name=current_user.name
+        candidate = await run_in_threadpool(
+            create_candidate,
+            db,
+            current_user.id,
+            file_path,
+            stored_file_name,
+            current_user.name
         )
 
     except HTTPException:
@@ -151,7 +153,7 @@ async def upload_candidate(
 
     # Rebuild intelligence after upload (best-effort, never blocks response)
     try:
-        rebuild_candidate_intelligence(db=db, candidate=candidate)
+        await run_in_threadpool(rebuild_candidate_intelligence, db, candidate)
     except Exception:
         logger.exception("Intelligence rebuild failed after resume upload")
 
@@ -276,8 +278,10 @@ async def upload_linkedin_profile(
         )
 
     try:
-        linkedin_profile = parse_linkedin_pdf(
-            await profile.read()
+        content = await profile.read()
+        linkedin_profile = await run_in_threadpool(
+            parse_linkedin_pdf,
+            content
         )
 
     except ValueError as exc:
@@ -287,11 +291,12 @@ async def upload_linkedin_profile(
         ) from exc
 
     try:
-        candidate = update_candidate_linkedin_profile(
-            db=db,
-            user_id=current_user.id,
-            linkedin_profile=linkedin_profile,
-            expected_name=current_user.name
+        candidate = await run_in_threadpool(
+            update_candidate_linkedin_profile,
+            db,
+            current_user.id,
+            linkedin_profile,
+            current_user.name
         )
     except ValueError as exc:
         logger.error("LinkedIn upload failed: %s", str(exc))
@@ -302,7 +307,7 @@ async def upload_linkedin_profile(
 
     # Rebuild intelligence after new LinkedIn data
     try:
-        rebuild_candidate_intelligence(db=db, candidate=candidate)
+        await run_in_threadpool(rebuild_candidate_intelligence, db, candidate)
     except Exception:
         logger.exception("Intelligence rebuild failed after LinkedIn upload")
 
