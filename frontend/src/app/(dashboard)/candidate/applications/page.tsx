@@ -7,6 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, Building2, Calendar, Clock, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useJobs } from "@/hooks/useJobs";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { PlayCircle } from "lucide-react";
 
 export default function CandidateApplicationsPage() {
   const { data: applications, isLoading, isError } = useMyApplications();
@@ -18,6 +21,7 @@ export default function CandidateApplicationsPage() {
   // Wait, let's fetch jobs data to match them up, or just display the Application details.
   // To keep it simple and fast, we'll fetch jobs and map them.
   const { data: jobsData } = useJobs({ page_size: 100 });
+  const router = useRouter();
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -105,6 +109,15 @@ export default function CandidateApplicationsPage() {
                       </p>
                     </div>
                   )}
+                  <div className="mt-6 flex justify-end">
+                    <Button 
+                      onClick={() => router.push(`/candidate/applications/${app.id}/assessment`)}
+                      variant="default"
+                    >
+                      <PlayCircle className="w-4 h-4 mr-2" />
+                      Take Assessment
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             );

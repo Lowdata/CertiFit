@@ -21,6 +21,9 @@ from app.api.company import (
 from app.api.analytics import (
     router as analytics_router
 )
+from app.api.assessments import (
+    router as assessments_router
+)
 
 app = FastAPI(title="CertiFit")
 
@@ -78,4 +81,9 @@ app.include_router(
     interview_router,
     prefix="/applications",
     tags=["Interview"]
+)
+
+app.include_router(
+    assessments_router,
+    tags=["Assessments"]
 )

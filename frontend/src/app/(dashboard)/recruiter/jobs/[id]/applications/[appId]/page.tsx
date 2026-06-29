@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AssessmentReview } from "@/components/AssessmentReview";
 
 function ScoreGauge({ label, value, max = 100, color }: { label: string; value: number; max?: number; color: string }) {
   const pct = Math.min((value / max) * 100, 100);
@@ -256,6 +257,9 @@ export default function CandidateReportPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* AI Assessment Video Review */}
+      <AssessmentReview applicationId={appId} />
 
       {/* Interview Plan */}
       <Card className="bg-white dark:bg-slate-900 border-border">
