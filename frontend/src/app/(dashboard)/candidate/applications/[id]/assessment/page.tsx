@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Webcam from "react-webcam";
 import { useReactMediaRecorder } from "react-media-recorder";
@@ -23,28 +23,32 @@ export default function AssessmentRoomPage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const hasStarted = useRef(false);
 
   const startAssessmentMut = useStartAssessment();
   const presignedUrlMut = usePresignedUrl();
   const submitRecordingMut = useSubmitRecording();
 
-  const { data: currentQuestionData, refetch: refetchQuestion, isLoading: isQuestionLoading } = useCurrentQuestion(assessmentId!);
+  // Only enable the question query when we have a valid assessmentId
+  const { data: currentQuestionData, refetch: refetchQuestion, isLoading: isQuestionLoading } = useCurrentQuestion(assessmentId ?? 0);
 
-  // Initialize assessment
+  // Initialize assessment — fire only once
   useEffect(() => {
-    if (applicationId && isInitializing) {
-      startAssessmentMut.mutateAsync(applicationId)
-        .then((data) => {
-          setAssessmentId(data.assessment_id);
-          setIsInitializing(false);
-        })
-        .catch((err) => {
-          console.error(err);
-          setError("Failed to start assessment. Please try again later.");
-          setIsInitializing(false);
-        });
-    }
-  }, [applicationId, isInitializing, startAssessmentMut]);
+    if (!applicationId || hasStarted.current) return;
+    hasStarted.current = true;
+
+    startAssessmentMut.mutateAsync(applicationId)
+      .then((data) => {
+        setAssessmentId(data.assessment_id);
+        setIsInitializing(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError("Failed to start assessment. Please try again later.");
+        setIsInitializing(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationId]);
 
   const { status, startRecording, stopRecording, mediaBlobUrl, clearBlobUrl } = useReactMediaRecorder({ 
     video: true,

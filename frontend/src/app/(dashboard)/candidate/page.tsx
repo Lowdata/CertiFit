@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Building2, Calendar, Briefcase, ArrowRight, Activity, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
+import { FileText, Building2, Calendar, Briefcase, ArrowRight, Activity, CheckCircle2, AlertCircle, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 
@@ -66,14 +66,19 @@ export default function CandidateDashboard() {
 
         <Card className="bg-white dark:bg-slate-900 border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Trust Score</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Match Score</CardTitle>
+            <TrendingUp className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {profileLoading ? <Skeleton className="h-8 w-16" /> : (profileResponse?.trust_score ? `${profileResponse.trust_score}%` : "N/A")}
+              {appsLoading ? <Skeleton className="h-8 w-16" /> : (() => {
+                const scored = (applications || []).filter(a => a.match_score != null);
+                if (scored.length === 0) return "N/A";
+                const avg = scored.reduce((sum, a) => sum + (a.match_score ?? 0), 0) / scored.length;
+                return `${Math.round(avg)}%`;
+              })()}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Based on verified history</p>
+            <p className="text-xs text-muted-foreground mt-1">Across your applications</p>
           </CardContent>
         </Card>
 

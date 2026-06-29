@@ -435,14 +435,15 @@ def _generate_activity_signals(github: dict) -> tuple[int, list[str], list[str]]
 # LLM consistency review (0-20 pts)
 # ---------------------------------------------------------------------------
 
-_LLM_SCHEMA_KEYS = ["concerns", "strengths", "consistency_score"]
+_LLM_SCHEMA_KEYS = ["concerns", "strengths", "consistency_score", "reasoning"]
 
 
 def _fallback_llm_review(reason: str) -> dict[str, Any]:
     return {
         "concerns": [],
         "strengths": [],
-        "consistency_score": 0,  # not used — fallback means no LLM pts awarded
+        "consistency_score": 0,
+        "reasoning": reason,
         "_reason": reason,
     }
 
@@ -529,7 +530,8 @@ Return ONLY valid JSON in this exact shape:
 {{
   "concerns": ["<specific concern>"],
   "strengths": ["<specific strength>"],
-  "consistency_score": <integer 0-100>
+  "consistency_score": <integer 0-100>,
+  "reasoning": "<2-3 sentence explanation of the score, covering what was verified, what evidence was strong, and what was concerning>"
 }}
 
 consistency_score:
@@ -566,6 +568,7 @@ consistency_score:
         "status": meta["status"],
         "error_reason": None,
         "consistency_score": raw_score,
+        "reasoning": result.get("reasoning") or "",
         "llm_concerns": result.get("concerns") or [],
         "llm_strengths": result.get("strengths") or [],
         "fallback_used": False,
@@ -730,8 +733,24 @@ def calculate_trust_score(candidate: "Candidate") -> dict[str, Any]:
 
     behavioral_insights = _generate_behavioral_insights(candidate)
 
+    # Build a human-readable reasoning summary
+    llm_reasoning = llm_review.get("reasoning") or ""
+    det_reasoning_parts = []
+    if all_strengths:
+        det_reasoning_parts.append("Strengths: " + "; ".join(all_strengths[:3]))
+    if all_concerns:
+        det_reasoning_parts.append("Concerns: " + "; ".join(all_concerns[:3]))
+    if all_unsupported:
+        det_reasoning_parts.append(f"Unsupported claims: {', '.join(all_unsupported[:5])}")
+    det_reasoning = ". ".join(det_reasoning_parts)
+    
+    full_reasoning = f"Score: {final_score}/100. {det_reasoning}"
+    if llm_reasoning:
+        full_reasoning += f" LLM Review: {llm_reasoning}"
+
     return {
         "trust_score": final_score,
+        "reasoning": full_reasoning,
         "score_breakdown": {
             "verification_score": verification_score,
             "activity_score": activity_pts,

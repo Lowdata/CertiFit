@@ -74,6 +74,10 @@ def process_application_scoring_background(application_id: int):
         application.composite_score = composite
         application.score_explanations = score_explanations
 
+        # Also persist the full trust data (including reasoning) to the candidate
+        if trust_data:
+            candidate.trust_score_json = trust_data
+
         db.commit()
         logger.info(f"Background scoring completed for application {application_id}")
     except Exception as e:
