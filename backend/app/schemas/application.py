@@ -19,6 +19,10 @@ class ApplicationStatusUpdateRequest(BaseModel):
     status: ApplicationStatus
 
 
+class ApplyJobRequest(BaseModel):
+    screening_answers: dict[str, Any] = {}
+
+
 class ApplicationResponse(BaseModel):
     id: int
     job_id: int
@@ -32,6 +36,7 @@ class ApplicationResponse(BaseModel):
     trust_score: float = 0.0
     composite_score: float = 0.0
     score_explanations: dict[str, Any] = {}
+    screening_answers: dict[str, Any] = {}
     applied_at: datetime | None = None
     updated_at: datetime | None = None
 

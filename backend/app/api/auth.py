@@ -1,7 +1,7 @@
-# app/api/auth.py
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Response
 import datetime
 
 from sqlalchemy.orm import Session
@@ -56,6 +56,7 @@ def register(
 @router.post("/login")
 def login(
     data: LoginRequest,
+    response: Response,
     db: Session = Depends(get_db)
 ):
 
@@ -71,6 +72,15 @@ def login(
             status_code=401,
             detail="Invalid credentials"
         )
+    
+    response.set_cookie(
+        key="access_token",
+        value=result["access_token"],
+        httponly=True,
+        samesite="lax",
+        secure=False,  # Set to True in prod with HTTPS
+        max_age=60 * 60 * 24 * 7  # 7 days
+    )
 
     return {
         "access_token": result["access_token"],
@@ -122,4 +132,14 @@ def delete_me(
         raise HTTPException(status_code=500, detail="Failed to delete account")
         
     return {"message": "Account deleted successfully"}
+
+@router.post("/logout")
+def logout(response: Response):
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        samesite="lax",
+        secure=False
+    )
+    return {"message": "Logged out successfully"}
 

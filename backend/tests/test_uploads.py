@@ -21,7 +21,7 @@ def test_upload_uses_generated_filename(client, monkeypatch):
     headers = auth_headers(client, "candidate@example.com", 2)
     captured = {}
 
-    def fake_create_candidate(db, user_id, file_path, file_name):
+    def fake_create_candidate(db, user_id, file_path, file_name, **kwargs):
         captured["file_path"] = file_path
         captured["file_name"] = file_name
         Path(file_path).unlink(missing_ok=True)
@@ -48,7 +48,7 @@ def test_upload_uses_generated_filename(client, monkeypatch):
 def test_upload_parser_failure_returns_api_error(client, monkeypatch):
     headers = auth_headers(client, "candidate@example.com", 2)
 
-    def fake_create_candidate(db, user_id, file_path, file_name):
+    def fake_create_candidate(db, user_id, file_path, file_name, **kwargs):
         raise ValueError("Resume could not be processed")
 
     monkeypatch.setattr(

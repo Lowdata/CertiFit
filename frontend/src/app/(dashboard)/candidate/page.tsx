@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Building2, Calendar, Briefcase, ArrowRight, Activity, CheckCircle2, AlertCircle } from "lucide-react";
+import { FileText, Building2, Calendar, Briefcase, ArrowRight, Activity, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 
@@ -52,7 +52,7 @@ export default function CandidateDashboard() {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-white dark:bg-slate-900 border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Active Applications</CardTitle>
@@ -61,6 +61,19 @@ export default function CandidateDashboard() {
           <CardContent>
             <div className="text-3xl font-bold">{appsLoading ? <Skeleton className="h-8 w-12" /> : applications?.length || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">Roles you've applied for</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white dark:bg-slate-900 border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Trust Score</CardTitle>
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">
+              {profileLoading ? <Skeleton className="h-8 w-16" /> : (profileResponse?.trust_score ? `${profileResponse.trust_score}%` : "N/A")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Based on verified history</p>
           </CardContent>
         </Card>
 

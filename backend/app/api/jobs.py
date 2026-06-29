@@ -33,6 +33,7 @@ from app.schemas.job import (
 from app.schemas.application import (
     ApplicationResponse,
     JobApplicationListResponse,
+    ApplyJobRequest
 )
 
 from app.services.jd_parser import (
@@ -88,7 +89,9 @@ def create_new_job(
         recruiter_id=current_user.id,
         title=data.title,
         company=data.company,
-        jd=data.jd
+        jd=data.jd,
+        apply_type=data.apply_type,
+        external_apply_url=data.external_apply_url
     )
 
     return {
@@ -293,9 +296,14 @@ def reparse_existing_job(
     }
 
 
+from fastapi import BackgroundTasks
+from app.services.scoring_task import process_application_scoring_background
+
 @router.post("/{job_id}/apply", response_model=ApplicationResponse)
 def apply_to_job(
     job_id: int,
+    background_tasks: BackgroundTasks,
+    request: ApplyJobRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_candidate
@@ -317,8 +325,11 @@ def apply_to_job(
         application = create_application(
             db=db,
             job_id=job_id,
-            candidate=candidate
+            candidate=candidate,
+            screening_answers=request.screening_answers
         )
+
+        background_tasks.add_task(process_application_scoring_background, application.id)
 
     except ValueError as e:
         raise HTTPException(
@@ -341,6 +352,7 @@ def apply_to_job(
         "match_summary": application.match_summary,
         "strengths": application.strengths_json,
         "gaps": application.gaps_json,
+        "screening_answers": application.screening_answers,
         "applied_at": application.applied_at
     }
 

@@ -28,7 +28,12 @@ export function useAuth() {
     router.push("/login");
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch (error) {
+      console.error("Failed to logout on server", error);
+    }
     clearAuth();
     router.push("/login");
   };

@@ -1,17 +1,14 @@
 # CertiFit Frontend Design
 
-Last audited: 2026-06-17
+Last audited: 2026-06-29
 
-This is the canonical frontend system design document. Keep it current after every completed feature. A new engineer or AI agent should be able to continue frontend work from this file without first spelunking the repository.
+This is the canonical frontend system design document.
 
 ## Project Overview
 
 CertiFit Frontend is a Next.js (App Router) web application designed to connect with the FastAPI CertiFit backend. It provides the user interface for candidates and recruiters.
 
-Current goals:
-- Candidates can register, log in, manage their profiles (resume, GitHub, LinkedIn), and apply for jobs.
-- Recruiters can register, log in, post jobs, and view candidate applications.
-- Serve as the UI for AI-driven resume parsing, matching, and interview prep.
+CertiFit is evolving into an **AI Hiring Intelligence Platform**.
 
 ## Tech Stack
 
@@ -19,50 +16,67 @@ Current goals:
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS / shadcn/ui
 - **Icons**: Lucide React
-- **HTTP Client**: native `fetch` / axios (TBD based on implementation)
+- **HTTP Client**: native `fetch` / axios
 
-## Implementation Status
+## Phased Development Roadmap
 
-| Feature | Status | Notes |
-| --- | --- | --- |
-| Setup | ✅ Implemented | Next.js initialized with Tailwind CSS. |
-| CORS Integration | ✅ Implemented | Backend CORS middleware added; preflight `OPTIONS` requests now succeed. |
-| Landing Page | ✅ Implemented | High-end SaaS design, dynamic radial backgrounds, bento grid features. |
-| Global Header | ✅ Implemented | Extracted into `<Header />` with integrated `ThemeToggle`. |
-| Authentication UI | ✅ Implemented | Split-screen enterprise layout (Geist font) for Login/Register. |
-| Authentication Logic | 🚧 In Progress | Forms hook up to `useAuth()`. Need to verify token storage and routing. |
-| Candidate Dashboard | ⏳ Pending | |
-| Recruiter Dashboard | ⏳ Pending | |
+**Current Phase**: **Phase 2 (AI Screening Platform)**
+**Previous Phase**: **Phase 1 (Completed)**
 
-## Project Structure
+### Phase 1: ATS Core & Dashboards (COMPLETED)
+- **Candidate Dashboard**: Profile completion (Resume, GitHub, LinkedIn), Job browsing, Application tracking, Trust Score visualization.
+- **Recruiter Dashboard**: Analytics, Candidate comparison, Trust engine, Interview copilot.
+- **Company Profile**: Logo, Website, Industry, Size. Jobs inherit Company branding.
+- **Job Management**: Internal vs External Apply.
+- **Screening Questions**: Custom Yes/No, Text, and Link questions during job creation and application.
+- **Quality & Security**: Migrated to secure `HttpOnly` cookie auth.
 
-```text
-frontend/
-├── src/
-│   ├── app/           # Next.js App Router pages
-│   ├── components/    # Reusable React components (UI library + custom)
-│   ├── lib/           # Utility functions, API clients, helpers
-│   └── types/         # TypeScript type definitions
-├── public/            # Static assets
-└── next.config.ts     # Next.js config
-```
+### Phase 2: AI Screening Platform (Current)
+- **Pre-Interview Check**: System/environment validation and rules acknowledgment.
+- **Assessment Room**: Locked down environment (Fullscreen API, tab switch detection, restricted keyboard shortcuts) capturing Integrity Signals.
+- **AI Question Engine**: Dynamic question generation (Technical, Behavioral) with 30s prep and 2min recording constraints.
+- **Live Speech Recognition**: Chunked question-by-question uploads and Whisper API transcriptions.
+- **AI Report**: Recommendations (Hire/Maybe/Reject) + Strengths, Weaknesses, Risk Areas. Includes a separated **Interview Integrity Score** based on behavioral signals.
 
-## API Integration
+### Phase 3: Hiring Intelligence
+- **Candidate 360°**: Unified intelligence profile combining Resume, LinkedIn, GitHub, Interview, Trust, Projects.
+- **Candidate Timeline**: Journey from Applied -> Hired.
+- **Hiring Decision Engine**: Recruiter sees Fit, Trust, Interview, Risk, Leadership, Ownership, Recommendation (instead of a single score).
+- **Candidate Comparison**: Detailed side-by-side matrices (Fit, Trust, Experience, Communication, etc.).
+- **Talent Pool**: Searchable database of all parsed candidates. Recruiters can filter by verified skills, Trust Score, GitHub activity, and invite candidates directly to jobs.
 
-The frontend connects to the backend API running locally (e.g., `http://localhost:8000`).
+### Phase 4: Collaboration
+- Permissions, Comments, Mentions, Shared Notes, Offer Approval.
 
-**Important Notes:**
-- **CORS Setup**: CORS has been successfully configured on the backend. Cross-origin requests from the frontend to `http://localhost:8000` are permitted, resolving the previous `405 Method Not Allowed` issue on `OPTIONS` requests.
-- **Authentication**: Uses JWT Bearer tokens. Tokens received on login/register should be stored (e.g., in `localStorage` or secure cookies) and attached to the `Authorization: Bearer <token>` header of subsequent API requests.
+### Phase 5: Enterprise
+- Integrations: Greenhouse, Lever, Workday, Ashby, Slack, Teams, Google Calendar, Outlook, Zoom, Meet.
 
-## Roadmap & Next Steps
+### Phase 6: Analytics
+- Company-wide hiring funnel, Time to hire, Source effectiveness, Interview pass rate, Trust score distribution, Recruiter performance.
 
-## Roadmap & Next Steps
+### Additional Features to Build
+- **AI Resume Rewrite**: Suggests improvements when candidate uploads resume.
+- **AI Mock Interview**: Practice interviews for candidates before applying.
+- **Recruiter Question Builder**: Create MCQ, Text, Video, Coding, File Upload questions.
+- **AI Job Description Optimizer**: Detects missing skills, bias, salary mismatch.
+- **AI Hiring Assistant**: Natural language querying over hiring data (e.g., "Show backend engineers with AWS above 80 Trust").
+- **AI Skill Graph**: Tracks Verified, Claimed, Unsupported, Learning, Strength for every candidate.
 
-1. Verify complete Authentication API flow (Token storage, User Type detection).
-2. Build Dashboard Shells (Sidebar layout for Candidates and Recruiters).
-3. Build Candidate profile and job listing views.
-4. Build Recruiter job management and application review views.
+## Engineering & Quality Standards
+
+**Strict Testing Mandate**:
+- EVERY feature must have comprehensive Unit Tests and Flow-Based Tests.
+- Pre-commit testing is mandatory: no code is committed unless all tests pass and verify the feature is fully working.
+
+**Security Mandate**:
+- Both frontend and backend must be audited for security vulnerabilities on every phase.
+- Global rate limiting, auth token hardening (`HttpOnly` cookies), and upload sanitization must be strictly enforced.
+
+## Core Component Architecture
+
+- `src/components/candidate`: UIs for candidate profile, job discovery, application status.
+- `src/components/recruiter`: UIs for job creation, candidate review, AI Copilot, hiring dashboard.
+- `src/components/interview`: (Future) UI for WebRTC/MediaRecorder for the AI interview.
 
 ## Known Limitations & Issues
-- None at the moment.
+- None currently flagged.

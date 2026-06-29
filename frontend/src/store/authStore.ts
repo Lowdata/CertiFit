@@ -23,11 +23,9 @@ export const useAuthStore = create<AuthStore>()(
       token: null,
       user: null,
       setAuth: (token, user) => {
-        localStorage.setItem("certifit_token", token);
         set({ token, user });
       },
       clearAuth: () => {
-        localStorage.removeItem("certifit_token");
         set({ token: null, user: null });
       },
       isRecruiter: () => get().user?.user_type === 1,

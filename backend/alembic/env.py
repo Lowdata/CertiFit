@@ -6,6 +6,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from app.db.database import Base
+from app.models.company import Company  # noqa: F401
 from app.models.application import Application  # noqa: F401
 from app.models.candidate import Candidate  # noqa: F401
 from app.models.job import Job  # noqa: F401

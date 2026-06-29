@@ -277,7 +277,8 @@ def _build_score_explanations(
 def create_application(
     db,
     job_id: int,
-    candidate: Candidate
+    candidate: Candidate,
+    screening_answers: dict = None
 ):
 
     job = (
@@ -301,44 +302,19 @@ def create_application(
     if existing:
         raise ValueError("Candidate has already applied to this job")
 
-    match = calculate_match(
-        job=job,
-        candidate=candidate
-    )
-    fit = match["score"]
-
-    # Trust score — compute deterministically; LLM is best-effort
-    try:
-        from app.services.trust_service import calculate_trust_score
-        trust_data = calculate_trust_score(candidate)
-        trust = float(trust_data.get("trust_score") or 0)
-    except Exception:
-        logger.exception("Trust score computation failed; defaulting to 0")
-        trust_data = {}
-        trust = 0.0
-
-    composite = _composite_score(fit, trust)
-    score_explanations = _build_score_explanations(
-        fit_score=fit,
-        trust_score=trust,
-        composite_score=composite,
-        strengths=match["strengths"],
-        trust_data=trust_data,
-        profile=getattr(candidate, "normalized_profile_json", None) or {},
-    )
-
     application = Application(
         job_id=job.id,
         candidate_id=candidate.id,
         status="applied",
-        match_score=fit,          # backward compat
-        match_summary=match["summary"],
-        strengths_json=match["strengths"],
-        gaps_json=match["gaps"],
-        fit_score=fit,
-        trust_score=trust,
-        composite_score=composite,
-        score_explanations=score_explanations,
+        match_score=0.0,
+        match_summary="Scoring in progress...",
+        strengths_json=[],
+        gaps_json=[],
+        fit_score=0.0,
+        trust_score=0.0,
+        composite_score=0.0,
+        score_explanations={},
+        screening_answers=screening_answers or {},
     )
 
     try:

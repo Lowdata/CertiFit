@@ -8,6 +8,7 @@ export interface Application {
   composite_score: number | null;
   strengths: string[] | null;
   gaps: string[] | null;
+  screening_answers?: Record<string, string>;
   applied_at: string;
   updated_at: string;
 }

@@ -59,6 +59,17 @@ class Application(Base):
         index=True
     )
 
+    is_external: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="false"
+    )
+
+    external_source: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
     match_score: Mapped[float] = mapped_column(
         Float,
         nullable=False,
@@ -105,6 +116,13 @@ class Application(Base):
         JSON().with_variant(JSONB, "postgresql"),
         nullable=False,
         default=dict
+    )
+
+    screening_answers: Mapped[dict] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=dict,
+        server_default="{}"
     )
 
     applied_at: Mapped[datetime] = mapped_column(

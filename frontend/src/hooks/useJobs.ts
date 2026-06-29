@@ -42,11 +42,11 @@ export function useCreateJob() {
 export function useApplyToJob() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (jobId: number) => {
-      const res = await api.post(`/jobs/${jobId}/apply`);
+    mutationFn: async ({ jobId, screening_answers }: { jobId: number; screening_answers?: Record<string, string> }) => {
+      const res = await api.post(`/jobs/${jobId}/apply`, { screening_answers: screening_answers || {} });
       return res.data;
     },
-    onSuccess: (_, jobId) => {
+    onSuccess: (_, { jobId }) => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
     },

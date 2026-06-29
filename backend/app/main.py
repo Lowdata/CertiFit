@@ -15,6 +15,12 @@ from app.api.applications import (
 from app.api.interview import (
     router as interview_router
 )
+from app.api.company import (
+    router as company_router
+)
+from app.api.analytics import (
+    router as analytics_router
+)
 
 app = FastAPI(title="CertiFit")
 
@@ -36,6 +42,18 @@ app.include_router(
     jobs_router,
     prefix="/jobs",
     tags=["Jobs"]
+)
+
+app.include_router(
+    company_router,
+    prefix="/company",
+    tags=["Company"]
+)
+
+app.include_router(
+    analytics_router,
+    prefix="/analytics",
+    tags=["Analytics"]
 )
 
 app.include_router(

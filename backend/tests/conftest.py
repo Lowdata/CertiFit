@@ -94,6 +94,7 @@ def auth_headers(client: TestClient, email: str, user_type: int) -> dict[str, st
     )
     assert response.status_code == 200, response.text
     token = response.json()["access_token"]
+    client.cookies.clear()
     return {"Authorization": f"Bearer {token}"}
 
 

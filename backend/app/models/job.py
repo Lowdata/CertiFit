@@ -42,6 +42,24 @@ class Job(Base):
         nullable=False
     )
 
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
+    apply_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="internal",
+        server_default="internal"
+    )
+
+    external_apply_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
     company: Mapped[str] = mapped_column(
         String(255),
         nullable=False
@@ -56,6 +74,13 @@ class Job(Base):
         JSON().with_variant(JSONB, "postgresql"),
         nullable=False,
         default=dict
+    )
+
+    screening_questions: Mapped[list] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=list,
+        server_default="[]"
     )
 
     created_at: Mapped[datetime] = mapped_column(
